@@ -73,6 +73,10 @@ Settings (poll interval, display mode, controller icon) live in the applet's
 popup and persist via `cosmic-config`; the poll interval is also written to
 `~/.config/cyclone2-battery/config.json`, which the daemon reads live.
 
+If *Cyclone 2 Battery* doesn't appear in the applet configurator right away, run
+`update-desktop-database ~/.local/share/applications` and/or log out and back in
+so COSMIC rescans the desktop entries.
+
 ### Manual test checklist (on COSMIC hardware)
 
 1. `cd cosmic-applet && cargo build && ./target/debug/cyclone2-applet` — runs
