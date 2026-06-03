@@ -4,6 +4,7 @@
 
 mod config;
 mod state;
+mod watcher;
 
 use cosmic::app::{Core, Task};
 use cosmic::Element;
