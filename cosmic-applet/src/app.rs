@@ -4,7 +4,7 @@ use crate::watcher;
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::window::Id;
-use cosmic::iced::{Alignment, Rectangle, Subscription};
+use cosmic::iced::{Alignment, Rectangle, Subscription, Vector};
 use cosmic::surface::action::{app_popup, destroy_popup};
 use cosmic::widget;
 use cosmic::Element;
@@ -74,6 +74,36 @@ impl Cyclone2Applet {
         {
             let _ = self.config.write_entry(&cfg);
         }
+    }
+}
+
+/// Build the message that toggles the popup: closes it if open, otherwise opens
+/// one anchored to the pressed button's rectangle. Shared by all panel buttons.
+fn popup_toggle(popup_id: Option<Id>, offset: Vector, bounds: Rectangle) -> Message {
+    if let Some(id) = popup_id {
+        Message::Surface(destroy_popup(id))
+    } else {
+        Message::Surface(app_popup::<Cyclone2Applet>(
+            move |state: &mut Cyclone2Applet| {
+                let new_id = Id::unique();
+                state.popup = Some(new_id);
+                let mut settings = state.core.applet.get_popup_settings(
+                    state.core.main_window_id().expect("applet main window"),
+                    new_id,
+                    None,
+                    None,
+                    None,
+                );
+                settings.positioner.anchor_rect = Rectangle {
+                    x: (bounds.x - offset.x) as i32,
+                    y: (bounds.y - offset.y) as i32,
+                    width: bounds.width as i32,
+                    height: bounds.height as i32,
+                };
+                settings
+            },
+            None,
+        ))
     }
 }
 
@@ -159,7 +189,7 @@ impl cosmic::Application for Cyclone2Applet {
             Display::Battery { icon, text } => (icon.clone(), text.clone()),
         };
 
-        let have_popup = self.popup;
+        let popup_id = self.popup;
         let mut row = widget::Row::with_capacity(3)
             .align_y(Alignment::Center)
             .spacing(2);
@@ -170,31 +200,7 @@ impl cosmic::Application for Cyclone2Applet {
                 .applet
                 .icon_button("input-gaming-symbolic")
                 .on_press_with_rectangle(move |offset, bounds| {
-                    if let Some(id) = have_popup {
-                        Message::Surface(destroy_popup(id))
-                    } else {
-                        Message::Surface(app_popup::<Cyclone2Applet>(
-                            move |state: &mut Cyclone2Applet| {
-                                let new_id = Id::unique();
-                                state.popup = Some(new_id);
-                                let mut settings = state.core.applet.get_popup_settings(
-                                    state.core.main_window_id().unwrap(),
-                                    new_id,
-                                    None,
-                                    None,
-                                    None,
-                                );
-                                settings.positioner.anchor_rect = Rectangle {
-                                    x: (bounds.x - offset.x) as i32,
-                                    y: (bounds.y - offset.y) as i32,
-                                    width: bounds.width as i32,
-                                    height: bounds.height as i32,
-                                };
-                                settings
-                            },
-                            None,
-                        ))
-                    }
+                    popup_toggle(popup_id, offset, bounds)
                 });
             row = row.push(btn);
         }
@@ -211,31 +217,7 @@ impl cosmic::Application for Cyclone2Applet {
                 .applet
                 .icon_button_from_handle(handle)
                 .on_press_with_rectangle(move |offset, bounds| {
-                    if let Some(id) = have_popup {
-                        Message::Surface(destroy_popup(id))
-                    } else {
-                        Message::Surface(app_popup::<Cyclone2Applet>(
-                            move |state: &mut Cyclone2Applet| {
-                                let new_id = Id::unique();
-                                state.popup = Some(new_id);
-                                let mut settings = state.core.applet.get_popup_settings(
-                                    state.core.main_window_id().unwrap(),
-                                    new_id,
-                                    None,
-                                    None,
-                                    None,
-                                );
-                                settings.positioner.anchor_rect = Rectangle {
-                                    x: (bounds.x - offset.x) as i32,
-                                    y: (bounds.y - offset.y) as i32,
-                                    width: bounds.width as i32,
-                                    height: bounds.height as i32,
-                                };
-                                settings
-                            },
-                            None,
-                        ))
-                    }
+                    popup_toggle(popup_id, offset, bounds)
                 });
             row = row.push(btn);
         }
@@ -245,31 +227,7 @@ impl cosmic::Application for Cyclone2Applet {
             let btn = widget::button::custom(self.core.applet.text(tv))
                 .class(cosmic::theme::Button::AppletIcon)
                 .on_press_with_rectangle(move |offset, bounds| {
-                    if let Some(id) = have_popup {
-                        Message::Surface(destroy_popup(id))
-                    } else {
-                        Message::Surface(app_popup::<Cyclone2Applet>(
-                            move |state: &mut Cyclone2Applet| {
-                                let new_id = Id::unique();
-                                state.popup = Some(new_id);
-                                let mut settings = state.core.applet.get_popup_settings(
-                                    state.core.main_window_id().unwrap(),
-                                    new_id,
-                                    None,
-                                    None,
-                                    None,
-                                );
-                                settings.positioner.anchor_rect = Rectangle {
-                                    x: (bounds.x - offset.x) as i32,
-                                    y: (bounds.y - offset.y) as i32,
-                                    width: bounds.width as i32,
-                                    height: bounds.height as i32,
-                                };
-                                settings
-                            },
-                            None,
-                        ))
-                    }
+                    popup_toggle(popup_id, offset, bounds)
                 });
             row = row.push(btn);
         }
