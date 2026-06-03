@@ -2,6 +2,8 @@
 // and wraps the icon button with Element::from() — both match the actual libcosmic API at
 // rev f0f68933f1552857e2165fc0fa953228107bddef (confirmed from examples/applet/src/window.rs).
 
+mod state;
+
 use cosmic::app::{Core, Task};
 use cosmic::Element;
 
