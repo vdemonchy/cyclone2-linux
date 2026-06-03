@@ -34,7 +34,8 @@ notification. cyclone2-battery's own indicator shows the **correct** DS4 level
 
 ## Requirements
 
-- Go 1.24+ to build, GNOME Shell 49 for the indicator.
+- Go 1.24+ to build. For the indicator: GNOME Shell 49 (extension) **or** COSMIC
+  with Rust stable ≥ 1.93 (applet — see [COSMIC (CachyOS)](#cosmic-cachyos)).
 
 ## Install
 
@@ -50,6 +51,40 @@ systemd `--user` service. Then load the indicator:
 # Wayland: log out and back in (a full shell reload is required), then:
 gnome-extensions enable cyclone2-battery@victor.local
 ```
+
+## COSMIC (CachyOS)
+
+On the COSMIC desktop the GNOME extension does not apply; a native libcosmic
+applet provides the same indicator. The daemon, udev rule, and systemd service
+are identical — only the frontend differs. `install.sh` auto-detects COSMIC (via
+`XDG_CURRENT_DESKTOP`) and builds/installs the applet instead of the extension.
+To force it (e.g. when running outside a graphical session):
+
+```bash
+CYCLONE2_FRONTEND=cosmic bash install.sh
+```
+
+This builds `cyclone2-applet` (needs **Rust stable ≥ 1.93** + libcosmic build
+deps), installs it to `~/.local/bin`, and drops a `.desktop` entry into
+`~/.local/share/applications`. Then add **Cyclone 2 Battery** to your panel:
+*Settings → Desktop → Panel (or Dock) → Configure applets*.
+
+Settings (poll interval, display mode, controller icon) live in the applet's
+popup and persist via `cosmic-config`; the poll interval is also written to
+`~/.config/cyclone2-battery/config.json`, which the daemon reads live.
+
+### Manual test checklist (on COSMIC hardware)
+
+1. `cd cosmic-applet && cargo build && ./target/debug/cyclone2-applet` — runs
+   standalone for dev (a small window).
+2. With a controller connected in XInput/DS4/Switch mode, the panel shows the
+   battery icon + level; the popup shows the correct Mode and Battery.
+3. Power the controller off (or switch to HID mode): the indicator hides
+   (off/disconnected) or shows a "missing" icon (HID mode).
+4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-battery.json` (e.g. flip `percent`) and
+   confirm the panel updates within a second.
+5. Change the poll interval in the popup; confirm
+   `~/.config/cyclone2-battery/config.json` updates and the daemon honors it.
 
 ## Usage
 
