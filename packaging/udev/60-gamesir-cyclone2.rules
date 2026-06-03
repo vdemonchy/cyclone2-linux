@@ -1,0 +1,4 @@
+# GameSir Cyclone 2 — grant the active desktop user access to the vendor HID node
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3537", ATTRS{idProduct}=="100b", TAG+="uaccess", MODE="0660", GROUP="plugdev"
+# DS4 mode: the controller enumerates as a Sony DualShock 4; battery is read via a vendor feature report
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="054c", ATTRS{idProduct}=="09cc", TAG+="uaccess", MODE="0660", GROUP="plugdev"

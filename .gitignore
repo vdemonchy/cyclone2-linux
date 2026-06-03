@@ -1,0 +1,5 @@
+/cyclone2
+*.o
+/dist/
+gschemas.compiled
+/cyclone2-battery
