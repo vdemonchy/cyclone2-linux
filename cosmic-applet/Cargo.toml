@@ -1,0 +1,19 @@
+[package]
+name = "cyclone2-applet"
+version = "0.1.0"
+edition = "2021"
+description = "GameSir Cyclone 2 battery applet for the COSMIC desktop"
+
+[[bin]]
+name = "cyclone2-applet"
+path = "src/main.rs"
+
+[dependencies]
+libcosmic = { git = "https://github.com/pop-os/libcosmic.git", rev = "f0f68933f1552857e2165fc0fa953228107bddef", default-features = false, features = ["applet", "tokio", "wayland"] }
+cosmic-config = { git = "https://github.com/pop-os/libcosmic.git", rev = "f0f68933f1552857e2165fc0fa953228107bddef", features = ["macro"] }
+notify = "6"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
