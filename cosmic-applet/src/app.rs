@@ -228,7 +228,15 @@ impl cosmic::Application for Cyclone2Applet {
     fn view(&self) -> Element<'_, Message> {
         let text_val = match &self.display {
             Display::Hidden => {
-                return widget::Space::new().into();
+                // Wrap the empty element in autosize_window so the panel shrinks
+                // the applet surface to zero; returning a bare Space leaves the
+                // surface at its last size (an empty gap) when the controller
+                // disconnects.
+                return self
+                    .core
+                    .applet
+                    .autosize_window(widget::Space::new())
+                    .into();
             }
             Display::Missing { text } => text.clone(),
             Display::Battery { text, .. } => text.clone(),
