@@ -14,5 +14,20 @@
       <default>60</default>
       <summary>Battery poll interval in seconds</summary>
     </key>
+    <key name="low-battery-threshold" type="i">
+      <default>20</default>
+      <range min="0" max="50"/>
+      <summary>Low-battery notification threshold (percent; 0 disables)</summary>
+    </key>
+    <key name="level-high-threshold" type="i">
+      <default>60</default>
+      <range min="0" max="100"/>
+      <summary>Battery % at or above which the icon is green</summary>
+    </key>
+    <key name="level-low-threshold" type="i">
+      <default>25</default>
+      <range min="0" max="100"/>
+      <summary>Battery % at or above which the icon is yellow; below is red</summary>
+    </key>
   </schema>
 </schemalist>
