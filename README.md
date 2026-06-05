@@ -80,8 +80,8 @@ deps), installs it to `~/.local/bin`, and drops a `.desktop` entry into
 `~/.local/share/applications`. Then add **Cyclone 2 Battery** to your panel:
 *Settings → Desktop → Panel (or Dock) → Configure applets*.
 
-Settings (poll interval, display mode) live in the applet's
-popup and persist via `cosmic-config`; the poll interval is also written to
+Settings (poll interval, display mode, low-battery alert, battery level colors) live in
+the applet's popup and persist via `cosmic-config`; the poll interval is also written to
 `~/.config/cyclone2-battery/config.json`, which the daemon reads live.
 
 If *Cyclone 2 Battery* doesn't appear in the applet configurator right away, run
@@ -109,23 +109,53 @@ so COSMIC rescans the desktop entries.
 
 ## The indicator
 
-- **Top bar:** a game-controller icon tinted by battery level — green (high,
-  ≥60%) / yellow (medium, 25–59%) / red (low, <25%) — plus the level text
-  (`NN%`, or the coarse level like `Full` in Switch mode) when *Icon + text* is
-  selected. The icon falls back to the default foreground colour when the level
-  is unknown (stale reading).
+- **Top bar:** a game-controller icon tinted by battery level — green (high) /
+  yellow (medium) / red (low), with **configurable thresholds** (defaults: green
+  ≥60%, yellow ≥25%, red below) — plus the level text (`NN%`, or the coarse level
+  like `Full` in Switch mode) when *Icon + text* is selected. The icon **pulses
+  while charging**, and falls back to the default foreground color when the
+  level is unknown (stale reading).
 - **Hover:** shows the controller name (`GameSir Cyclone 2`).
-- **Click:** a dropdown menu with the current **Mode** and **Battery** details.
+- **Click:** a dropdown menu with the current **Mode** and **Battery** — the
+  battery line always shows the charge state (`— Charging` / `— On battery`).
+
+Charging detection is reliable in **DS4** and **Switch** modes (kernel
+`power_supply` cable-state). In **XInput** mode it relies on a reverse-engineered
+report flag that is only confirmed at full charge, so the charging pulse/label
+there is best-effort until verified mid-charge.
+
+## Low-battery notifications
+
+The **daemon** posts a desktop notification (via the freedesktop notification
+service) when the battery first drops to or below a configurable threshold, then
+stays quiet until the level recovers (with a small hysteresis margin) or the
+controller charges/disconnects — so a battery hovering near the threshold doesn't
+spam you. Because the daemon reads the **correct** per-mode value, this works
+accurately in *all* battery modes — including XInput and DS4, which the system
+power panel (UPower) can't report correctly.
+
+Set the threshold in the applet popup (COSMIC) or extension preferences (GNOME)
+with a numeric stepper — **0–50% in steps of 5** (default **20%**; **0
+disables**). Requires a running notification daemon and `gdbus` (part of glib —
+present on GNOME/COSMIC).
 
 ## Configuration
 
-Open the GNOME **Extensions** app → *Cyclone 2 Battery*:
+Open the GNOME **Extensions** app → *Cyclone 2 Battery* (COSMIC: the applet
+popup):
 
 - **Battery poll interval** — `10s / 30s / 1 min / 5 min` (default 1 min). The
-  extension writes it to `~/.config/cyclone2-battery/config.json`, which the
+  frontend writes it to `~/.config/cyclone2-battery/config.json`, which the
   daemon reads live (no restart). CLI override precedence: `--interval` flag >
   `CYCLONE2_INTERVAL` env > config file > 60s default (5s minimum).
 - **Top-bar display** — *Icon only* / *Icon + text*.
+- **Low battery alert** — percentage at or below which the daemon notifies,
+  set with a 0–50% stepper (default 20%, `0` disables). Also written to
+  `config.json`.
+- **Battery level colors** — battery % thresholds for the icon: green at or
+  above the high threshold, yellow at or above the low threshold, red below it
+  (defaults: green ≥60%, yellow ≥25%). The green threshold can't be set at or
+  below the yellow one.
 
 ## How it works
 

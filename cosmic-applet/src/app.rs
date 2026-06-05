@@ -18,6 +18,8 @@ pub struct Cyclone2Applet {
     display: Display,
     popup: Option<Id>,
     state_path: PathBuf,
+    /// Advances each animation tick to breathe the icon brightness while charging.
+    charge_phase: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +28,10 @@ pub enum Message {
     PopupClosed(Id),
     SetInterval(i32),
     SetDisplayMode(DisplayMode),
+    SetThreshold(i32),
+    SetLevelHigh(i32),
+    SetLevelLow(i32),
+    Tick,
     Surface(cosmic::surface::Action),
 }
 
@@ -46,14 +52,13 @@ impl Cyclone2Applet {
         if !s.battery_known {
             return "Battery: unavailable".into();
         }
-        let mut batt = if s.level.is_empty() {
+        let amount = if s.level.is_empty() {
             format!("{}%", s.percent)
         } else {
             s.level.clone()
         };
-        if s.charging {
-            batt.push_str(" (charging)");
-        }
+        let status = if s.charging { "Charging" } else { "On battery" };
+        let mut batt = format!("{amount} \u{2014} {status}");
         if s.stale {
             batt.push_str(" (stale)");
         }
@@ -73,6 +78,15 @@ impl Cyclone2Applet {
         {
             let _ = self.config.write_entry(&cfg);
         }
+    }
+
+    /// Write the daemon's config.json (poll interval + low-battery threshold).
+    fn write_daemon_config(&self) {
+        let _ = config::write_daemon_config(
+            &config::daemon_config_dir(),
+            self.config.poll_interval,
+            self.config.low_battery_threshold,
+        );
     }
 }
 
@@ -136,19 +150,38 @@ impl cosmic::Application for Cyclone2Applet {
             display: Display::Hidden,
             popup: None,
             state_path: state::state_path(),
+            charge_phase: 0.0,
         };
         app.reload_state();
+        // Sync settings to the daemon's config.json on startup so the configured
+        // poll interval and low-battery threshold take effect without waiting for
+        // the user to change a setting.
+        app.write_daemon_config();
         (app, Task::none())
     }
 
     fn subscription(&self) -> Subscription<Message> {
-        watcher::subscription(self.state_path.clone()).map(|_| Message::StateChanged)
+        let watch = watcher::subscription(self.state_path.clone()).map(|_| Message::StateChanged);
+        // While charging, add a timer that pulses the icon. iced starts/stops the
+        // timer automatically as this set changes with the charging state.
+        if self.state.present && self.state.charging {
+            let pulse = cosmic::iced::time::every(std::time::Duration::from_millis(60))
+                .map(|_| Message::Tick);
+            Subscription::batch([watch, pulse])
+        } else {
+            watch
+        }
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::StateChanged => {
                 self.reload_state();
+                Task::none()
+            }
+            Message::Tick => {
+                // Advance the breathing phase (~2s cycle at the 60ms tick rate).
+                self.charge_phase = (self.charge_phase + 0.19) % std::f32::consts::TAU;
                 Task::none()
             }
             Message::Surface(action) => cosmic::task::message(cosmic::Action::Cosmic(
@@ -163,11 +196,29 @@ impl cosmic::Application for Cyclone2Applet {
             Message::SetInterval(secs) => {
                 self.config.poll_interval = secs;
                 self.persist();
-                let _ = config::write_daemon_interval(&config::daemon_config_dir(), secs);
+                self.write_daemon_config();
                 Task::none()
             }
             Message::SetDisplayMode(mode) => {
                 self.config.display_mode = mode;
+                self.persist();
+                Task::none()
+            }
+            Message::SetThreshold(threshold) => {
+                self.config.low_battery_threshold = threshold;
+                self.persist();
+                self.write_daemon_config();
+                Task::none()
+            }
+            Message::SetLevelHigh(v) => {
+                // Green must stay strictly above the yellow threshold.
+                self.config.level_high = v.max(self.config.level_low + 5);
+                self.persist();
+                Task::none()
+            }
+            Message::SetLevelLow(v) => {
+                // Yellow must stay strictly below the green threshold.
+                self.config.level_low = v.min(self.config.level_high - 5);
                 self.persist();
                 Task::none()
             }
@@ -190,20 +241,33 @@ impl cosmic::Application for Cyclone2Applet {
         let suggested = self.core.applet.suggested_size(true);
         let colorize = matches!(self.display, Display::Battery { .. });
         let pct = self.state.percent;
+        // While charging, smoothly breathe the icon brightness via the pulse phase.
+        let charging = self.state.charging;
+        let phase = self.charge_phase;
+        let level_high = self.config.level_high;
+        let level_low = self.config.level_low;
         let icon_class = cosmic::theme::Svg::Custom(std::rc::Rc::new(move |theme| {
             let c = theme.cosmic();
-            let color = if !colorize {
+            let base = if !colorize {
                 c.background.on
-            } else if pct >= 60 {
+            } else if pct >= level_high {
                 c.success.base
-            } else if pct >= 25 {
+            } else if pct >= level_low {
                 c.warning.base
             } else {
                 c.destructive.base
             };
-            cosmic::widget::svg::Style {
-                color: Some(color.into()),
+            let mut color: cosmic::iced::Color = base.into();
+            if charging {
+                // sin() ∈ [-1, 1] → brightness factor ∈ [0.4, 1.0] (~40% floor),
+                // ~2s cycle (see the 60ms tick + 0.19 phase step). Kept in sync
+                // with the GNOME extension's opacity pulse for a matching feel.
+                let f = 0.7 + 0.3 * phase.sin();
+                color.r *= f;
+                color.g *= f;
+                color.b *= f;
             }
+            cosmic::widget::svg::Style { color: Some(color) }
         }));
         let controller_icon = widget::icon::from_name("input-gaming-symbolic")
             .symbolic(true)
@@ -262,7 +326,41 @@ impl cosmic::Application for Cyclone2Applet {
             display_row = display_row.push(b);
         }
 
-        let content = widget::Column::with_capacity(8)
+        // Numeric stepper (mirrors the GNOME SpinRow): 0–50% in steps of 5,
+        // where 0 shows "Off". The spin_button widget displays the label we pass
+        // and drives the +/- math from value/step/min/max.
+        let threshold = self.config.low_battery_threshold;
+        let threshold_label = if threshold <= 0 {
+            "Off".to_string()
+        } else {
+            format!("{threshold}%")
+        };
+        let threshold_spin =
+            widget::spin_button(threshold_label, threshold, 5, 0, 50, Message::SetThreshold);
+
+        // Battery level colour thresholds (green ≥ high, yellow ≥ low, else red).
+        let level_high = self.config.level_high;
+        let level_low = self.config.level_low;
+        // Green must stay above yellow: bound each stepper by the other (+/- one
+        // step) so the constraint can't be violated from the UI.
+        let high_spin = widget::spin_button(
+            format!("{level_high}%"),
+            level_high,
+            5,
+            level_low + 5,
+            100,
+            Message::SetLevelHigh,
+        );
+        let low_spin = widget::spin_button(
+            format!("{level_low}%"),
+            level_low,
+            5,
+            0,
+            level_high - 5,
+            Message::SetLevelLow,
+        );
+
+        let content = widget::Column::with_capacity(14)
             .spacing(8)
             .push(cosmic::applet::padded_control(widget::text::title4(
                 self.mode_line(),
@@ -280,7 +378,25 @@ impl cosmic::Application for Cyclone2Applet {
             .push(cosmic::applet::padded_control(widget::text::heading(
                 "Display",
             )))
-            .push(cosmic::applet::padded_control(display_row));
+            .push(cosmic::applet::padded_control(display_row))
+            .push(cosmic::applet::padded_control(widget::text::heading(
+                "Low battery alert",
+            )))
+            .push(cosmic::applet::padded_control(threshold_spin))
+            .push(cosmic::applet::padded_control(widget::text::heading(
+                "Battery level colors",
+            )))
+            .push(cosmic::applet::padded_control(widget::settings::item(
+                "Green at \u{2265}",
+                high_spin,
+            )))
+            .push(cosmic::applet::padded_control(widget::settings::item(
+                "Yellow at \u{2265}",
+                low_spin,
+            )))
+            .push(cosmic::applet::padded_control(widget::text::caption(
+                "Below the yellow threshold the icon is red.",
+            )));
 
         self.core.applet.popup_container(content).into()
     }

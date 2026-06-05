@@ -28,6 +28,13 @@ impl Default for DisplayMode {
 pub struct AppletConfig {
     pub poll_interval: i32,
     pub display_mode: DisplayMode,
+    /// Percentage at or below which the daemon posts a low-battery notification.
+    /// 0 disables notifications.
+    pub low_battery_threshold: i32,
+    /// Battery % at or above which the icon is green (high level).
+    pub level_high: i32,
+    /// Battery % at or above which the icon is yellow (medium); below is red (low).
+    pub level_low: i32,
 }
 
 impl Default for AppletConfig {
@@ -35,6 +42,9 @@ impl Default for AppletConfig {
         AppletConfig {
             poll_interval: 60,
             display_mode: DisplayMode::IconText,
+            low_battery_threshold: 20,
+            level_high: 60,
+            level_low: 25,
         }
     }
 }
@@ -53,16 +63,18 @@ pub fn daemon_config_dir() -> PathBuf {
     base.join("cyclone2-battery")
 }
 
-/// Serialize exactly like the GNOME prefs.js write: {"interval_seconds":N}.
-pub fn daemon_interval_bytes(secs: i32) -> Vec<u8> {
-    format!("{{\"interval_seconds\":{secs}}}").into_bytes()
+/// Serialize the daemon config.json, matching the GNOME extension's write:
+/// {"interval_seconds":N,"low_battery_threshold":T}.
+pub fn daemon_config_bytes(secs: i32, low_battery_threshold: i32) -> Vec<u8> {
+    format!("{{\"interval_seconds\":{secs},\"low_battery_threshold\":{low_battery_threshold}}}")
+        .into_bytes()
 }
 
 /// Write the daemon config.json into `dir`, creating the dir if needed.
-pub fn write_daemon_interval(dir: &Path, secs: i32) -> std::io::Result<()> {
+pub fn write_daemon_config(dir: &Path, secs: i32, low_battery_threshold: i32) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     let path = dir.join("config.json");
-    std::fs::write(path, daemon_interval_bytes(secs))
+    std::fs::write(path, daemon_config_bytes(secs, low_battery_threshold))
 }
 
 #[cfg(test)]
@@ -74,12 +86,21 @@ mod tests {
         let c = AppletConfig::default();
         assert_eq!(c.poll_interval, 60);
         assert_eq!(c.display_mode, DisplayMode::IconText);
+        assert_eq!(c.low_battery_threshold, 20);
+        assert_eq!(c.level_high, 60);
+        assert_eq!(c.level_low, 25);
     }
 
     #[test]
-    fn interval_bytes_are_exact() {
-        assert_eq!(daemon_interval_bytes(30), b"{\"interval_seconds\":30}");
-        assert_eq!(daemon_interval_bytes(300), b"{\"interval_seconds\":300}");
+    fn config_bytes_are_exact() {
+        assert_eq!(
+            daemon_config_bytes(30, 20),
+            b"{\"interval_seconds\":30,\"low_battery_threshold\":20}"
+        );
+        assert_eq!(
+            daemon_config_bytes(300, 0),
+            b"{\"interval_seconds\":300,\"low_battery_threshold\":0}"
+        );
     }
 
     #[test]
@@ -87,9 +108,9 @@ mod tests {
         let tmp = std::env::temp_dir()
             .join(format!("cyclone2-cfg-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
-        write_daemon_interval(&tmp, 10).unwrap();
+        write_daemon_config(&tmp, 10, 15).unwrap();
         let got = std::fs::read(tmp.join("config.json")).unwrap();
-        assert_eq!(got, b"{\"interval_seconds\":10}");
+        assert_eq!(got, b"{\"interval_seconds\":10,\"low_battery_threshold\":15}");
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }
