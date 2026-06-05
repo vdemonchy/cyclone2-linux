@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"github.com/victordemonchy/cyclone2-battery/internal/config"
 	"github.com/victordemonchy/cyclone2-battery/internal/device"
 	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
+	"github.com/victordemonchy/cyclone2-battery/internal/notify"
 	"github.com/victordemonchy/cyclone2-battery/internal/powersupply"
 	"github.com/victordemonchy/cyclone2-battery/internal/reader"
 	"github.com/victordemonchy/cyclone2-battery/internal/state"
@@ -62,7 +64,14 @@ func runDaemon(args []string) error {
 	}
 
 	var last state.State
-	pollOnce(*statePath, &last)
+	notifier := &lowBatteryNotifier{send: notify.Send}
+	// poll reads the battery, writes the state file, and fires a low-battery
+	// notification if the level just crossed the configured threshold.
+	poll := func() {
+		pollOnce(*statePath, &last)
+		notifier.consider(last, currentThreshold())
+	}
+	poll()
 
 	ticker := time.NewTicker(curInterval)
 	defer ticker.Stop()
@@ -78,20 +87,66 @@ func runDaemon(args []string) error {
 	for {
 		select {
 		case <-ticker.C:
-			pollOnce(*statePath, &last)
+			poll()
 			reapply() // fallback pickup if inotify is unavailable
 		case ev := <-events:
 			if ev.Action == "remove" {
 				last = state.State{Present: false}
 				writeState(*statePath, last)
+				notifier.consider(last, currentThreshold())
 				log.Printf("controller disconnected")
 			} else {
-				pollOnce(*statePath, &last)
+				poll()
 			}
 		case <-configCh:
 			reapply()
 		}
 	}
+}
+
+// lowBatteryNotifier posts a desktop notification when the battery first drops
+// to or below the threshold, then stays quiet until the level recovers (with a
+// small hysteresis margin) or the controller charges/disconnects — so a battery
+// hovering near the threshold doesn't spam the user.
+type lowBatteryNotifier struct {
+	notified bool
+	send     func(icon, summary, body string) error
+}
+
+// lowBatteryHysteresis is how far above the threshold the battery must climb
+// before a fresh low-battery notification can fire again.
+const lowBatteryHysteresis = 5
+
+func (n *lowBatteryNotifier) consider(s state.State, threshold int) {
+	if threshold <= 0 {
+		return // notifications disabled
+	}
+	// Charging or disconnected: re-arm so the next discharge can notify again.
+	if s.Charging || !s.Present {
+		n.notified = false
+		return
+	}
+	// Can't trust the level: leave the armed state untouched.
+	if !s.BatteryKnown || s.Stale {
+		return
+	}
+	if s.Percent <= threshold {
+		if !n.notified {
+			body := fmt.Sprintf("%s battery at %d%%", notify.AppName, s.Percent)
+			if err := n.send("input-gaming-symbolic", "Controller battery low", body); err != nil {
+				log.Printf("low-battery notification failed: %v", err)
+			}
+			n.notified = true
+		}
+	} else if s.Percent >= threshold+lowBatteryHysteresis {
+		n.notified = false
+	}
+}
+
+// currentThreshold reads the live low-battery threshold from the config file.
+func currentThreshold() int {
+	cfg, _ := config.Read()
+	return cfg.LowBatteryThreshold
 }
 
 // currentInterval resolves flag > env > config-file > default.
