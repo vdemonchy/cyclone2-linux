@@ -19,10 +19,8 @@ class Indicator extends PanelMenu.Button {
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
         this._controllerIcon = new St.Icon({icon_name: 'input-gaming-symbolic', style_class: 'system-status-icon'});
-        this._icon = new St.Icon({icon_name: 'battery-missing-symbolic', style_class: 'system-status-icon'});
         this._label = new St.Label({y_align: Clutter.ActorAlign.CENTER, text: ''});
         box.add_child(this._controllerIcon);
-        box.add_child(this._icon);
         box.add_child(this._label);
         this.add_child(box);
 
@@ -33,26 +31,25 @@ class Indicator extends PanelMenu.Button {
         Main.layoutManager.addChrome(this._tooltip);
         this._hoverId = this.connect('notify::hover', () => this._onHover());
 
-        this._modeItem = new PopupMenu.PopupMenuItem('Mode: —', {reactive: false});
+        this._modeItem = new PopupMenu.PopupMenuItem('Cyclone 2 mode: —', {reactive: false});
         this._batteryItem = new PopupMenu.PopupMenuItem('Battery: —', {reactive: false});
         this.menu.addMenuItem(this._modeItem);
         this.menu.addMenuItem(this._batteryItem);
 
         this._modeId = this._settings.connect('changed::display-mode', () => this._applyMode());
         this._applyMode();
-        this._ctrlIconId = this._settings.connect('changed::show-controller-icon', () => this._applyControllerIcon());
-        this._applyControllerIcon();
+        this._levelHiId = this._settings.connect('changed::level-high-threshold', () => this._reapply());
+        this._levelLoId = this._settings.connect('changed::level-low-threshold', () => this._reapply());
+    }
+
+    // Re-render from the last state (used when level-colour thresholds change).
+    _reapply() {
+        if (this._lastState) this.update(this._lastState);
     }
 
     _applyMode() {
         const mode = this._settings.get_string('display-mode');
-        this._icon.visible = mode !== 'text-only';
         this._label.visible = mode !== 'icon-only';
-    }
-
-    _applyControllerIcon() {
-        if (this._controllerIcon)
-            this._controllerIcon.visible = this._settings.get_boolean('show-controller-icon');
     }
 
     update(state) {
@@ -60,29 +57,65 @@ class Indicator extends PanelMenu.Button {
         this._updateMenu(state);
         if (!state || !state.present) {
             this.visible = false;
+            this._setChargingPulse(false);
             if (this._tooltip) this._tooltip.hide();
             return;
         }
+        this.visible = true;
         if (state.battery_known === false) {
-            this.visible = true;
             this._label.text = '';
-            this._icon.icon_name = 'battery-missing-symbolic';
+            this._setIconColor(null);
+            this._setChargingPulse(false);
             return;
         }
-        this.visible = true;
         if (state.stale) {
             this._label.text = `${state.percent}%?`;
-            this._icon.icon_name = 'battery-missing-symbolic';
+            this._setIconColor(null);
+            this._setChargingPulse(false);
             return;
         }
         this._label.text = state.level ? state.level : `${state.percent}%`;
-        this._icon.icon_name = this._iconFor(state);
+        this._setIconColor(this._colorFor(state.percent));
+        this._setChargingPulse(!!state.charging);
     }
 
-    _iconFor(state) {
-        const p = state.percent;
-        const lvl = p >= 90 ? 'full' : p >= 60 ? 'good' : p >= 30 ? 'low' : p >= 10 ? 'caution' : 'empty';
-        return state.charging ? `battery-${lvl}-charging-symbolic` : `battery-${lvl}-symbolic`;
+    // Tint the controller icon by battery level: green (high) / yellow (medium)
+    // / red (low). A null colour clears the tint so the icon follows the theme's
+    // default top-bar foreground (used when the level is unknown: stale / no
+    // battery source).
+    _colorFor(percent) {
+        const high = this._settings.get_int('level-high-threshold');
+        const low = this._settings.get_int('level-low-threshold');
+        if (percent >= high) return '#2ec27e';
+        if (percent >= low) return '#f5c211';
+        return '#e01b24';
+    }
+
+    _setIconColor(color) {
+        if (this._controllerIcon)
+            this._controllerIcon.style = color ? `color: ${color};` : null;
+    }
+
+    // Pulse the controller icon's opacity while charging (a looping, auto-reversing
+    // transition), and clear it otherwise.
+    _setChargingPulse(on) {
+        if (!this._controllerIcon) return;
+        if (on) {
+            if (this._controllerIcon.get_transition('charge-pulse')) return;
+            // ~40% floor, ~2s full cycle (1000ms each way, auto-reversed), sine
+            // easing — kept in sync with the COSMIC applet's breathing pulse.
+            const t = new Clutter.PropertyTransition({property_name: 'opacity'});
+            t.set_from(255);
+            t.set_to(102);
+            t.set_duration(1000);
+            t.set_auto_reverse(true);
+            t.set_repeat_count(-1);
+            t.set_progress_mode(Clutter.AnimationMode.EASE_IN_OUT_SINE);
+            this._controllerIcon.add_transition('charge-pulse', t);
+        } else {
+            this._controllerIcon.remove_transition('charge-pulse');
+            this._controllerIcon.opacity = 255;
+        }
     }
 
     _onHover() {
@@ -105,29 +138,34 @@ class Indicator extends PanelMenu.Button {
         if (!this._modeItem) return;
         const names = {xinput: 'XInput', ds4: 'DS4', switch: 'Switch', hid: 'HID', unknown: 'Unknown'};
         if (!state || !state.present) {
-            this._modeItem.label.text = 'Mode: disconnected';
+            this._modeItem.label.text = 'Cyclone 2 mode: disconnected';
             this._batteryItem.label.text = 'Battery: —';
             return;
         }
-        this._modeItem.label.text = `Mode: ${names[state.mode] || state.mode || 'Unknown'}`;
+        this._modeItem.label.text = `Cyclone 2 mode: ${names[state.mode] || state.mode || 'Unknown'}`;
         if (state.battery_known === false) {
             this._batteryItem.label.text = 'Battery: unavailable';
             return;
         }
         let batt = state.level ? state.level : `${state.percent}%`;
-        if (state.charging) batt += ' (charging)';
+        batt += state.charging ? ' — Charging' : ' — On battery';
         if (state.stale) batt += ' (stale)';
         this._batteryItem.label.text = `Battery: ${batt}`;
     }
 
     cleanup() {
+        this._setChargingPulse(false);
         if (this._modeId) {
             this._settings.disconnect(this._modeId);
             this._modeId = 0;
         }
-        if (this._ctrlIconId) {
-            this._settings.disconnect(this._ctrlIconId);
-            this._ctrlIconId = 0;
+        if (this._levelHiId) {
+            this._settings.disconnect(this._levelHiId);
+            this._levelHiId = 0;
+        }
+        if (this._levelLoId) {
+            this._settings.disconnect(this._levelLoId);
+            this._levelLoId = 0;
         }
         if (this._hoverId) {
             this.disconnect(this._hoverId);
@@ -149,6 +187,7 @@ export default class Cyclone2BatteryExtension extends Extension {
         this._indicator = new Indicator(this._settings);
         Main.panel.addToStatusArea(this.uuid, this._indicator);
         this._intervalId = this._settings.connect('changed::poll-interval', () => this._writeConfig());
+        this._thresholdId = this._settings.connect('changed::low-battery-threshold', () => this._writeConfig());
         this._writeConfig();
 
         this._file = Gio.File.new_for_path(STATE_PATH);
@@ -178,7 +217,8 @@ export default class Cyclone2BatteryExtension extends Extension {
             GLib.mkdir_with_parents(dir, 0o755);
             const path = GLib.build_filenamev([dir, 'config.json']);
             const seconds = this._settings.get_int('poll-interval');
-            const data = JSON.stringify({interval_seconds: seconds});
+            const threshold = this._settings.get_int('low-battery-threshold');
+            const data = JSON.stringify({interval_seconds: seconds, low_battery_threshold: threshold});
             Gio.File.new_for_path(path).replace_contents(
                 new TextEncoder().encode(data), null, false,
                 Gio.FileCreateFlags.REPLACE_DESTINATION, null);
@@ -207,6 +247,10 @@ export default class Cyclone2BatteryExtension extends Extension {
         if (this._intervalId) {
             this._settings.disconnect(this._intervalId);
             this._intervalId = 0;
+        }
+        if (this._thresholdId) {
+            this._settings.disconnect(this._thresholdId);
+            this._thresholdId = 0;
         }
         this._settings = null;
     }

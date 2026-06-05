@@ -1,5 +1,5 @@
 {
-  "uuid": "cyclone2-battery@victor.local",
+  "uuid": "cyclone2-battery@vdemonchy.github.io",
   "name": "Cyclone 2 Battery",
   "description": "Shows the GameSir Cyclone 2 controller battery level in the top bar.",
   "shell-version": ["49"],

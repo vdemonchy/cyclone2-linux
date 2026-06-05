@@ -1,5 +1,6 @@
-// Package config reads the runtime config the GNOME extension writes for the
-// daemon (currently just the poll interval).
+// Package config reads the runtime config the frontends (GNOME extension /
+// COSMIC applet) write for the daemon: the poll interval and the low-battery
+// notification threshold.
 package config
 
 import (
@@ -10,6 +11,9 @@ import (
 
 type Config struct {
 	IntervalSeconds int `json:"interval_seconds"`
+	// LowBatteryThreshold is the percentage at or below which the daemon posts
+	// a low-battery desktop notification. 0 (or unset) disables notifications.
+	LowBatteryThreshold int `json:"low_battery_threshold"`
 }
 
 // Path is $XDG_CONFIG_HOME/cyclone2-battery/config.json (falling back to

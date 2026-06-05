@@ -8,8 +8,8 @@ import (
 func batteryFrame(percent, flags byte) []byte {
 	f := make([]byte, 64)
 	f[0] = 0x12
+	f[35] = flags // charging/cable flag
 	f[36] = percent
-	f[37] = flags
 	return f
 }
 
@@ -23,7 +23,7 @@ func TestParseBatteryFull(t *testing.T) {
 	}
 }
 
-func TestParseBatteryChargingFlagBestEffort(t *testing.T) {
+func TestParseBatteryChargingFlag(t *testing.T) {
 	st, err := ParseBattery(batteryFrame(80, 0x01))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -40,8 +40,21 @@ func TestParseBatteryRealCapturedFrame(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if st.Percent != 100 {
-		t.Fatalf("got %d%%, want 100%%", st.Percent)
+	if st.Percent != 100 || st.Charging {
+		t.Fatalf("got %+v, want Percent:100 Charging:false (on-battery capture)", st)
+	}
+}
+
+// Real frames captured 2026-06-05 by plugging/unplugging the controller in
+// XInput mode: byte[35] is the charging/cable flag (0 unplugged, 1 plugged).
+func TestParseBatteryRealChargingFrames(t *testing.T) {
+	unplugged, _ := hex.DecodeString("12808080800f00000000ec6300feff00000700d200582083ff000000000000000000000064003f250005003a00342500000000000000808080800f0000000000")
+	plugged, _ := hex.DecodeString("12808080800f0000000092e900fdff00000900c7005a2085ff00000000000000000000016400021b263f00002c1300000000000000007f8080800f0000000000")
+	if st, _ := ParseBattery(unplugged); st.Charging {
+		t.Fatalf("unplugged frame: got Charging:true, want false")
+	}
+	if st, _ := ParseBattery(plugged); !st.Charging || st.Percent != 100 {
+		t.Fatalf("plugged frame: got %+v, want Percent:100 Charging:true", st)
 	}
 }
 

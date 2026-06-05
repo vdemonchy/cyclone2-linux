@@ -23,10 +23,13 @@ elicits no reply.
 ### Battery reply
 Input report **ID `0x12`**, 64 bytes. Battery is at a fixed offset:
 
+- **byte[35] = charging/cable flag** (CONFIRMED 2026-06-05): `0x00` on battery,
+  `0x01` when plugged in. Verified by capturing frames across plug → unplug →
+  plug cycles; byte[35] tracked the cable state exactly (it flipped even at 100%,
+  so it is a cable/charging indicator, not strictly a "current flowing" bit).
 - **byte[36] = battery percent** (raw 0–100; observed `0x64` = 100 at full charge).
-- byte[37] = status/charging flag **(UNCONFIRMED)** — `0x00` in every observed
-  state. Could not be confirmed because the pack was at 100% (plugged-full and
-  on-battery-full read identically). Revisit when the battery is mid-charge.
+- byte[37] was previously suspected to be the charging flag but stayed `0x00`
+  across plug/unplug — it is **not** the charging flag.
 
 Report **ID `0x10`** (`10 06 00…`) is a separate event report and does **NOT**
 carry battery (its byte[36] is `0x00`). The parser must accept **only `0x12`**.
@@ -50,7 +53,8 @@ on battery, full (opcode 0x03):
 ## Status
 - **byte[36] = battery percent: CONFIRMED** (value matches full charge; sole
   in-range constant in the report; stable across plugged/unplugged).
-- **byte[37] = charging flag: TENTATIVE** (not observable at full charge).
+- **byte[35] = charging/cable flag: CONFIRMED** (0 on battery, 1 plugged;
+  tracked the cable state across plug/unplug captures on 2026-06-05).
 - Request = Output `0F 03 00…`; reply = Input report `0x12`.
 
 ---
