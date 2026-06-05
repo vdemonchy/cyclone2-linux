@@ -125,7 +125,7 @@ Open the GNOME **Extensions** app → *Cyclone 2 Battery*:
   extension writes it to `~/.config/cyclone2-battery/config.json`, which the
   daemon reads live (no restart). CLI override precedence: `--interval` flag >
   `CYCLONE2_INTERVAL` env > config file > 60s default (5s minimum).
-- **Top-bar display** — *Icon only* / *Icon + text* / *Text only*.
+- **Top-bar display** — *Icon only* / *Icon + text*.
 
 ## How it works
 

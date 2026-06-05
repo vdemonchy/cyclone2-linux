@@ -1,6 +1,5 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
-import Gio from 'gi://Gio';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
@@ -9,10 +8,10 @@ export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
         const page = new Adw.PreferencesPage();
         const group = new Adw.PreferencesGroup({title: 'Display'});
 
-        const modes = ['icon-only', 'icon-text', 'text-only'];
+        const modes = ['icon-only', 'icon-text'];
         const row = new Adw.ComboRow({
             title: 'Top-bar display',
-            model: Gtk.StringList.new(['Icon only', 'Icon + text', 'Text only']),
+            model: Gtk.StringList.new(['Icon only', 'Icon + text']),
         });
         row.selected = modes.indexOf(settings.get_string('display-mode'));
         row.connect('notify::selected', () => settings.set_string('display-mode', modes[row.selected]));
@@ -30,13 +29,6 @@ export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
         intervalRow.connect('notify::selected', () =>
             settings.set_int('poll-interval', intervals[intervalRow.selected]));
         group.add(intervalRow);
-
-        const controllerRow = new Adw.SwitchRow({
-            title: 'Show controller icon',
-            subtitle: 'Display a game-controller icon in the top bar',
-        });
-        settings.bind('show-controller-icon', controllerRow, 'active', Gio.SettingsBindFlags.DEFAULT);
-        group.add(controllerRow);
 
         page.add(group);
         window.add(page);

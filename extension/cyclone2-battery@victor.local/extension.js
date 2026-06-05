@@ -19,10 +19,8 @@ class Indicator extends PanelMenu.Button {
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
         this._controllerIcon = new St.Icon({icon_name: 'input-gaming-symbolic', style_class: 'system-status-icon'});
-        this._icon = new St.Icon({icon_name: 'battery-missing-symbolic', style_class: 'system-status-icon'});
         this._label = new St.Label({y_align: Clutter.ActorAlign.CENTER, text: ''});
         box.add_child(this._controllerIcon);
-        box.add_child(this._icon);
         box.add_child(this._label);
         this.add_child(box);
 
@@ -33,26 +31,18 @@ class Indicator extends PanelMenu.Button {
         Main.layoutManager.addChrome(this._tooltip);
         this._hoverId = this.connect('notify::hover', () => this._onHover());
 
-        this._modeItem = new PopupMenu.PopupMenuItem('Mode: —', {reactive: false});
+        this._modeItem = new PopupMenu.PopupMenuItem('Cyclone 2 mode: —', {reactive: false});
         this._batteryItem = new PopupMenu.PopupMenuItem('Battery: —', {reactive: false});
         this.menu.addMenuItem(this._modeItem);
         this.menu.addMenuItem(this._batteryItem);
 
         this._modeId = this._settings.connect('changed::display-mode', () => this._applyMode());
         this._applyMode();
-        this._ctrlIconId = this._settings.connect('changed::show-controller-icon', () => this._applyControllerIcon());
-        this._applyControllerIcon();
     }
 
     _applyMode() {
         const mode = this._settings.get_string('display-mode');
-        this._icon.visible = mode !== 'text-only';
         this._label.visible = mode !== 'icon-only';
-    }
-
-    _applyControllerIcon() {
-        if (this._controllerIcon)
-            this._controllerIcon.visible = this._settings.get_boolean('show-controller-icon');
     }
 
     update(state) {
@@ -63,26 +53,34 @@ class Indicator extends PanelMenu.Button {
             if (this._tooltip) this._tooltip.hide();
             return;
         }
+        this.visible = true;
         if (state.battery_known === false) {
-            this.visible = true;
             this._label.text = '';
-            this._icon.icon_name = 'battery-missing-symbolic';
+            this._setIconColor(null);
             return;
         }
-        this.visible = true;
         if (state.stale) {
             this._label.text = `${state.percent}%?`;
-            this._icon.icon_name = 'battery-missing-symbolic';
+            this._setIconColor(null);
             return;
         }
         this._label.text = state.level ? state.level : `${state.percent}%`;
-        this._icon.icon_name = this._iconFor(state);
+        this._setIconColor(this._colorFor(state.percent));
     }
 
-    _iconFor(state) {
-        const p = state.percent;
-        const lvl = p >= 90 ? 'full' : p >= 60 ? 'good' : p >= 30 ? 'low' : p >= 10 ? 'caution' : 'empty';
-        return state.charging ? `battery-${lvl}-charging-symbolic` : `battery-${lvl}-symbolic`;
+    // Tint the controller icon by battery level: green (high) / yellow (medium)
+    // / red (low). A null colour clears the tint so the icon follows the theme's
+    // default top-bar foreground (used when the level is unknown: stale / no
+    // battery source).
+    _colorFor(percent) {
+        if (percent >= 60) return '#2ec27e';
+        if (percent >= 25) return '#f5c211';
+        return '#e01b24';
+    }
+
+    _setIconColor(color) {
+        if (this._controllerIcon)
+            this._controllerIcon.style = color ? `color: ${color};` : null;
     }
 
     _onHover() {
@@ -105,11 +103,11 @@ class Indicator extends PanelMenu.Button {
         if (!this._modeItem) return;
         const names = {xinput: 'XInput', ds4: 'DS4', switch: 'Switch', hid: 'HID', unknown: 'Unknown'};
         if (!state || !state.present) {
-            this._modeItem.label.text = 'Mode: disconnected';
+            this._modeItem.label.text = 'Cyclone 2 mode: disconnected';
             this._batteryItem.label.text = 'Battery: —';
             return;
         }
-        this._modeItem.label.text = `Mode: ${names[state.mode] || state.mode || 'Unknown'}`;
+        this._modeItem.label.text = `Cyclone 2 mode: ${names[state.mode] || state.mode || 'Unknown'}`;
         if (state.battery_known === false) {
             this._batteryItem.label.text = 'Battery: unavailable';
             return;
@@ -124,10 +122,6 @@ class Indicator extends PanelMenu.Button {
         if (this._modeId) {
             this._settings.disconnect(this._modeId);
             this._modeId = 0;
-        }
-        if (this._ctrlIconId) {
-            this._settings.disconnect(this._ctrlIconId);
-            this._ctrlIconId = 0;
         }
         if (this._hoverId) {
             this.disconnect(this._hoverId);

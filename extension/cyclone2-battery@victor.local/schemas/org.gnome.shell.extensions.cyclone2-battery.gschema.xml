@@ -3,7 +3,6 @@
   <enum id="org.gnome.shell.extensions.cyclone2-battery.display-mode">
     <value nick="icon-only" value="0"/>
     <value nick="icon-text" value="1"/>
-    <value nick="text-only" value="2"/>
   </enum>
   <schema id="org.gnome.shell.extensions.cyclone2-battery"
           path="/org/gnome/shell/extensions/cyclone2-battery/">
@@ -14,10 +13,6 @@
     <key name="poll-interval" type="i">
       <default>60</default>
       <summary>Battery poll interval in seconds</summary>
-    </key>
-    <key name="show-controller-icon" type="b">
-      <default>true</default>
-      <summary>Show a game-controller icon in the top bar</summary>
     </key>
   </schema>
 </schemalist>
