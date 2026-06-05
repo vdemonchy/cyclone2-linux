@@ -10,8 +10,8 @@ const (
 	opcodeBattery   = 0x03 // any of 0x01/0x03 wakes the stream; 0x03 used
 	reportLen       = 64
 
+	offsetFlags   = 35 // byte[35] = charging/cable flag: 0 on battery, 1 plugged in
 	offsetPercent = 36 // byte[36] = battery percent, raw 0-100 (CONFIRMED)
-	offsetFlags   = 37 // byte[37] = charging/status flag (TENTATIVE, unconfirmed)
 )
 
 // ErrUnexpectedReport means the report is not the 0x12 battery report.
@@ -36,7 +36,7 @@ func BuildBatteryRequest() []byte {
 // ParseBattery decodes a 0x12 battery report. It rejects any other report ID
 // (notably the 0x10 event report, whose byte[36] is 0) and short frames.
 func ParseBattery(report []byte) (BatteryStatus, error) {
-	if len(report) <= offsetFlags || report[0] != reportIDBattery {
+	if len(report) <= offsetPercent || report[0] != reportIDBattery {
 		return BatteryStatus{}, ErrUnexpectedReport
 	}
 	pct := int(report[offsetPercent])
@@ -46,7 +46,7 @@ func ParseBattery(report []byte) (BatteryStatus, error) {
 	return BatteryStatus{
 		Present:  true,
 		Percent:  pct,
-		Charging: report[offsetFlags] != 0, // best-effort; flag location unconfirmed
+		Charging: report[offsetFlags] != 0, // byte[35], confirmed by plug/unplug capture
 	}, nil
 }
 

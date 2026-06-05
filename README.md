@@ -119,10 +119,9 @@ so COSMIC rescans the desktop entries.
 - **Click:** a dropdown menu with the current **Mode** and **Battery** — the
   battery line always shows the charge state (`— Charging` / `— On battery`).
 
-Charging detection is reliable in **DS4** and **Switch** modes (kernel
-`power_supply` cable-state). In **XInput** mode it relies on a reverse-engineered
-report flag that is only confirmed at full charge, so the charging pulse/label
-there is best-effort until verified mid-charge.
+Charging detection works in all battery modes: **DS4** and **Switch** read the
+kernel `power_supply` cable-state, and **XInput** reads byte 35 of the vendor
+`0x12` report — the charging/cable flag, confirmed by plug/unplug captures.
 
 ## Low-battery notifications
 
