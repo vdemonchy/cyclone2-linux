@@ -8,7 +8,6 @@ pub const CONFIG_VERSION: u64 = 1;
 pub enum DisplayMode {
     IconOnly,
     IconText,
-    TextOnly,
 }
 
 impl Default for DisplayMode {
@@ -29,7 +28,6 @@ impl Default for DisplayMode {
 pub struct AppletConfig {
     pub poll_interval: i32,
     pub display_mode: DisplayMode,
-    pub show_controller_icon: bool,
 }
 
 impl Default for AppletConfig {
@@ -37,7 +35,6 @@ impl Default for AppletConfig {
         AppletConfig {
             poll_interval: 60,
             display_mode: DisplayMode::IconText,
-            show_controller_icon: true,
         }
     }
 }
@@ -77,7 +74,6 @@ mod tests {
         let c = AppletConfig::default();
         assert_eq!(c.poll_interval, 60);
         assert_eq!(c.display_mode, DisplayMode::IconText);
-        assert!(c.show_controller_icon);
     }
 
     #[test]

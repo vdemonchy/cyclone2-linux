@@ -4,7 +4,7 @@ use crate::watcher;
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::window::Id;
-use cosmic::iced::{Alignment, Rectangle, Subscription, Vector};
+use cosmic::iced::{Alignment, Length, Rectangle, Subscription, Vector};
 use cosmic::surface::action::{app_popup, destroy_popup};
 use cosmic::widget;
 use cosmic::Element;
@@ -26,7 +26,6 @@ pub enum Message {
     PopupClosed(Id),
     SetInterval(i32),
     SetDisplayMode(DisplayMode),
-    ToggleControllerIcon(bool),
     Surface(cosmic::surface::Action),
 }
 
@@ -63,9 +62,9 @@ impl Cyclone2Applet {
 
     fn mode_line(&self) -> String {
         if !self.state.present {
-            return "Mode: disconnected".into();
+            return "Cyclone 2 mode: disconnected".into();
         }
-        format!("Mode: {}", state::mode_name(&self.state.mode))
+        format!("Cyclone 2 mode: {}", state::mode_name(&self.state.mode))
     }
 
     fn persist(&self) {
@@ -172,67 +171,63 @@ impl cosmic::Application for Cyclone2Applet {
                 self.persist();
                 Task::none()
             }
-            Message::ToggleControllerIcon(on) => {
-                self.config.show_controller_icon = on;
-                self.persist();
-                Task::none()
-            }
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let (icon_name, text_val) = match &self.display {
+        let text_val = match &self.display {
             Display::Hidden => {
                 return widget::Space::new().into();
             }
-            Display::Missing { text } => ("battery-missing-symbolic".to_string(), text.clone()),
-            Display::Battery { icon, text } => (icon.clone(), text.clone()),
+            Display::Missing { text } => text.clone(),
+            Display::Battery { text, .. } => text.clone(),
         };
 
+        // The controller icon is the indicator; it is tinted by battery level:
+        // green (high) / yellow (medium) / red (low), falling back to the panel
+        // foreground colour when the level is unknown (missing / stale / no
+        // battery).
+        let suggested = self.core.applet.suggested_size(true);
+        let colorize = matches!(self.display, Display::Battery { .. });
+        let pct = self.state.percent;
+        let icon_class = cosmic::theme::Svg::Custom(std::rc::Rc::new(move |theme| {
+            let c = theme.cosmic();
+            let color = if !colorize {
+                c.background.on
+            } else if pct >= 60 {
+                c.success.base
+            } else if pct >= 25 {
+                c.warning.base
+            } else {
+                c.destructive.base
+            };
+            cosmic::widget::svg::Style {
+                color: Some(color.into()),
+            }
+        }));
+        let controller_icon = widget::icon::from_name("input-gaming-symbolic")
+            .symbolic(true)
+            .size(suggested.0)
+            .icon()
+            .class(icon_class)
+            .width(Length::Fixed(suggested.0 as f32))
+            .height(Length::Fixed(suggested.1 as f32));
+
+        // Build the indicator as a single row (icon, optionally + text)...
+        let mut content = widget::Row::new().align_y(Alignment::Center).spacing(4);
+        content = content.push(controller_icon);
+        if self.config.display_mode == DisplayMode::IconText && !text_val.is_empty() {
+            content = content.push(self.core.applet.text(text_val));
+        }
+
+        // ...wrapped in a single AppletIcon button so it reads as one cohesive
+        // indicator, and in autosize_window so the panel surface grows to fit.
         let popup_id = self.popup;
-        let mut row = widget::Row::with_capacity(3)
-            .align_y(Alignment::Center)
-            .spacing(2);
+        let btn = widget::button::custom(content)
+            .class(cosmic::theme::Button::AppletIcon)
+            .on_press_with_rectangle(move |offset, bounds| popup_toggle(popup_id, offset, bounds));
 
-        if self.config.show_controller_icon {
-            let btn = self
-                .core
-                .applet
-                .icon_button("input-gaming-symbolic")
-                .on_press_with_rectangle(move |offset, bounds| {
-                    popup_toggle(popup_id, offset, bounds)
-                });
-            row = row.push(btn);
-        }
-
-        if self.config.display_mode != DisplayMode::TextOnly {
-            // Use icon_button_from_handle so the button doesn't borrow icon_name (a local String).
-            let suggested_size = self.core.applet.suggested_size(true);
-            let handle = widget::icon::from_name(icon_name.as_str())
-                .symbolic(true)
-                .size(suggested_size.0)
-                .into();
-            let btn = self
-                .core
-                .applet
-                .icon_button_from_handle(handle)
-                .on_press_with_rectangle(move |offset, bounds| {
-                    popup_toggle(popup_id, offset, bounds)
-                });
-            row = row.push(btn);
-        }
-
-        if self.config.display_mode != DisplayMode::IconOnly && !text_val.is_empty() {
-            let tv = text_val.clone();
-            let btn = widget::button::custom(self.core.applet.text(tv))
-                .class(cosmic::theme::Button::AppletIcon)
-                .on_press_with_rectangle(move |offset, bounds| {
-                    popup_toggle(popup_id, offset, bounds)
-                });
-            row = row.push(btn);
-        }
-
-        row.into()
+        self.core.applet.autosize_window(btn).into()
     }
 
     fn view_window(&self, _id: Id) -> Element<'_, Message> {
@@ -251,10 +246,9 @@ impl cosmic::Application for Cyclone2Applet {
             interval_row = interval_row.push(b);
         }
 
-        let display_modes: [(DisplayMode, &str); 3] = [
+        let display_modes: [(DisplayMode, &str); 2] = [
             (DisplayMode::IconOnly, "Icon only"),
             (DisplayMode::IconText, "Icon + text"),
-            (DisplayMode::TextOnly, "Text only"),
         ];
         let mut display_row = widget::Row::with_capacity(display_modes.len()).spacing(4);
         for (mode, label) in display_modes {
@@ -286,12 +280,7 @@ impl cosmic::Application for Cyclone2Applet {
             .push(cosmic::applet::padded_control(widget::text::heading(
                 "Display",
             )))
-            .push(cosmic::applet::padded_control(display_row))
-            .push(cosmic::applet::padded_control(
-                widget::toggler(self.config.show_controller_icon)
-                    .label("Show controller icon".to_string())
-                    .on_toggle(Message::ToggleControllerIcon),
-            ));
+            .push(cosmic::applet::padded_control(display_row));
 
         self.core.applet.popup_container(content).into()
     }

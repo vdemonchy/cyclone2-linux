@@ -32,6 +32,17 @@ fixes are patching `upowerd` (overwritten on updates) or intercepting the GNOME
 notification. cyclone2-battery's own indicator shows the **correct** DS4 level
 (read from the vendor HID feature report), so the popup is cosmetic.
 
+**System power settings (UPower):** the indicator (applet/extension) reports the
+battery in **all** battery-readable modes. The desktop's *system* power panel,
+however, only sees what the kernel exposes as a `power_supply` device through
+UPower — and that is **only Switch mode** (`hid-nintendo`, accurate but coarse)
+plus DS4 (the bogus ~5% above). XInput battery is reverse-engineered from the
+vendor HID interface with no kernel `power_supply`, so it never appears in the
+system power panel. UPower has no userspace API to publish a custom battery, so
+surfacing the daemon's correct values there would require a dedicated kernel
+driver — intentionally out of scope. Use the indicator for accurate per-mode
+battery; the system power panel is only reliable in Switch mode.
+
 ## Requirements
 
 - Go 1.24+ to build. For the indicator: GNOME Shell 49 (extension) **or** COSMIC
@@ -69,7 +80,7 @@ deps), installs it to `~/.local/bin`, and drops a `.desktop` entry into
 `~/.local/share/applications`. Then add **Cyclone 2 Battery** to your panel:
 *Settings → Desktop → Panel (or Dock) → Configure applets*.
 
-Settings (poll interval, display mode, controller icon) live in the applet's
+Settings (poll interval, display mode) live in the applet's
 popup and persist via `cosmic-config`; the poll interval is also written to
 `~/.config/cyclone2-battery/config.json`, which the daemon reads live.
 
@@ -82,9 +93,10 @@ so COSMIC rescans the desktop entries.
 1. `cd cosmic-applet && cargo build && ./target/debug/cyclone2-applet` — runs
    standalone for dev (a small window).
 2. With a controller connected in XInput/DS4/Switch mode, the panel shows the
-   battery icon + level; the popup shows the correct Mode and Battery.
-3. Power the controller off (or switch to HID mode): the indicator hides
-   (off/disconnected) or shows a "missing" icon (HID mode).
+   controller icon tinted by battery level + the level; the popup shows the
+   correct Mode and Battery.
+3. Power the controller off or switch to HID mode: the indicator hides (no
+   readable battery).
 4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-battery.json` (e.g. flip `percent`) and
    confirm the panel updates within a second.
 5. Change the poll interval in the popup; confirm
@@ -97,8 +109,11 @@ so COSMIC rescans the desktop entries.
 
 ## The indicator
 
-- **Top bar:** battery icon + level (`NN%`, or the coarse level like `Full` in
-  Switch mode).
+- **Top bar:** a game-controller icon tinted by battery level — green (high,
+  ≥60%) / yellow (medium, 25–59%) / red (low, <25%) — plus the level text
+  (`NN%`, or the coarse level like `Full` in Switch mode) when *Icon + text* is
+  selected. The icon falls back to the default foreground colour when the level
+  is unknown (stale reading).
 - **Hover:** shows the controller name (`GameSir Cyclone 2`).
 - **Click:** a dropdown menu with the current **Mode** and **Battery** details.
 
