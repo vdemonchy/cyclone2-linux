@@ -110,7 +110,7 @@ impl cosmic::Application for Cyclone2Applet {
     type Executor = cosmic::SingleThreadExecutor;
     type Flags = ();
     type Message = Message;
-    const APP_ID: &'static str = "dev.victor.Cyclone2Battery";
+    const APP_ID: &'static str = "io.github.vdemonchy.Cyclone2Battery";
 
     fn core(&self) -> &Core {
         &self.core

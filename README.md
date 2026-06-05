@@ -60,7 +60,7 @@ systemd `--user` service. Then load the indicator:
 
 ```bash
 # Wayland: log out and back in (a full shell reload is required), then:
-gnome-extensions enable cyclone2-battery@victor.local
+gnome-extensions enable cyclone2-battery@vdemonchy.github.io
 ```
 
 ## COSMIC (CachyOS)

@@ -31,15 +31,15 @@ if [ "$frontend" = "cosmic" ]; then
   ( cd cosmic-applet && cargo build --release )
   install -m0755 cosmic-applet/target/release/cyclone2-applet "$HOME/.local/bin/cyclone2-applet"
   mkdir -p "$HOME/.local/share/applications"
-  install -m0644 cosmic-applet/data/dev.victor.Cyclone2Battery.desktop \
-    "$HOME/.local/share/applications/dev.victor.Cyclone2Battery.desktop"
+  install -m0644 cosmic-applet/data/io.github.vdemonchy.Cyclone2Battery.desktop \
+    "$HOME/.local/share/applications/io.github.vdemonchy.Cyclone2Battery.desktop"
   echo "COSMIC applet installed."
   echo "Add it via: Settings → Desktop → Panel (or Dock) → Configure applets → add 'Cyclone 2 Battery'."
 else
-  EXT_SRC="extension/cyclone2-battery@victor.local"
-  EXT_DST="$HOME/.local/share/gnome-shell/extensions/cyclone2-battery@victor.local"
+  EXT_SRC="extension/cyclone2-battery@vdemonchy.github.io"
+  EXT_DST="$HOME/.local/share/gnome-shell/extensions/cyclone2-battery@vdemonchy.github.io"
   mkdir -p "$EXT_DST"
   cp -r "$EXT_SRC/." "$EXT_DST/"
   glib-compile-schemas "$EXT_DST/schemas"
-  echo "extension installed; log out/in, then: gnome-extensions enable cyclone2-battery@victor.local"
+  echo "extension installed; log out/in, then: gnome-extensions enable cyclone2-battery@vdemonchy.github.io"
 fi
