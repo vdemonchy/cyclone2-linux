@@ -9,12 +9,12 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-battery.json']);
+const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-linux.json']);
 
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
     _init(settings) {
-        super._init(0.0, 'Cyclone 2 Battery');
+        super._init(0.0, 'Cyclone 2');
         this._settings = settings;
 
         const box = new St.BoxLayout({style_class: 'panel-status-menu-box'});
@@ -181,7 +181,7 @@ class Indicator extends PanelMenu.Button {
     }
 });
 
-export default class Cyclone2BatteryExtension extends Extension {
+export default class Cyclone2Extension extends Extension {
     enable() {
         this._settings = this.getSettings();
         this._indicator = new Indicator(this._settings);
@@ -216,7 +216,7 @@ export default class Cyclone2BatteryExtension extends Extension {
 
     _writeConfig() {
         try {
-            const dir = GLib.build_filenamev([GLib.get_user_config_dir(), 'cyclone2-battery']);
+            const dir = GLib.build_filenamev([GLib.get_user_config_dir(), 'cyclone2-linux']);
             GLib.mkdir_with_parents(dir, 0o755);
             const path = GLib.build_filenamev([dir, 'config.json']);
             const seconds = this._settings.get_int('poll-interval');
@@ -235,7 +235,7 @@ export default class Cyclone2BatteryExtension extends Extension {
                 new TextEncoder().encode(data), null, false,
                 Gio.FileCreateFlags.REPLACE_DESTINATION, null);
         } catch (e) {
-            logError(e, 'cyclone2-battery: failed to write config.json');
+            logError(e, 'cyclone2-linux: failed to write config.json');
         }
     }
 

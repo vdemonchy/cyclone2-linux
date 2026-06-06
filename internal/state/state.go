@@ -21,14 +21,14 @@ type State struct {
 	Level        string `json:"level,omitempty"`
 }
 
-// DefaultPath is $XDG_RUNTIME_DIR/cyclone2-battery.json (falling back to the
+// DefaultPath is $XDG_RUNTIME_DIR/cyclone2-linux.json (falling back to the
 // OS temp dir if XDG_RUNTIME_DIR is unset).
 func DefaultPath() string {
 	dir := os.Getenv("XDG_RUNTIME_DIR")
 	if dir == "" {
 		dir = os.TempDir()
 	}
-	return filepath.Join(dir, "cyclone2-battery.json")
+	return filepath.Join(dir, "cyclone2-linux.json")
 }
 
 // Write atomically replaces the state file: it writes a temp file in the same

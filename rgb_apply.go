@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/config"
-	"github.com/victordemonchy/cyclone2-battery/internal/device"
-	"github.com/victordemonchy/cyclone2-battery/internal/protocol"
+	"github.com/vdemonchy/cyclone2-linux/internal/config"
+	"github.com/vdemonchy/cyclone2-linux/internal/device"
+	"github.com/vdemonchy/cyclone2-linux/internal/protocol"
 )
 
 // rgbWriteGap spaces consecutive LED writes; the firmware drops zone writes sent

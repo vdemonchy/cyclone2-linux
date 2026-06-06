@@ -6,13 +6,13 @@ import (
 )
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `cyclone2 — GameSir Cyclone 2 battery tool
+	fmt.Fprintln(os.Stderr, `cyclone2 — GameSir Cyclone 2 battery & lighting tool
 
 usage:
   cyclone2 probe     reverse-engineering helper (dumps HID frames)
   cyclone2 status    print battery percentage once (--json for machine output)
-  cyclone2 daemon    poll battery and write the state file for the GNOME extension
-  cyclone2 rgb       control the RGB lighting (color/brightness/effect)`)
+  cyclone2 daemon    poll battery and write the state file for the indicator
+  cyclone2 rgb       control the RGB lighting (color/zones/brightness/off)`)
 }
 
 func main() {

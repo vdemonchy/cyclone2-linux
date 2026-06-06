@@ -10,10 +10,10 @@ sudo udevadm control --reload-rules && sudo udevadm trigger --subsystem-match=hi
 echo "udev rule installed"
 
 mkdir -p "$HOME/.config/systemd/user"
-install -m0644 packaging/systemd/cyclone2-battery.service "$HOME/.config/systemd/user/cyclone2-battery.service"
+install -m0644 packaging/systemd/cyclone2-linux.service "$HOME/.config/systemd/user/cyclone2-linux.service"
 systemctl --user daemon-reload
-systemctl --user enable --now cyclone2-battery.service
-echo "service enabled; state file: ${XDG_RUNTIME_DIR}/cyclone2-battery.json"
+systemctl --user enable --now cyclone2-linux.service
+echo "service enabled; state file: ${XDG_RUNTIME_DIR}/cyclone2-linux.json"
 
 # ---- frontend: pick by desktop environment ----
 # Override with CYCLONE2_FRONTEND=cosmic|gnome (useful outside a graphical session).
@@ -31,15 +31,15 @@ if [ "$frontend" = "cosmic" ]; then
   ( cd cosmic-applet && cargo build --release )
   install -m0755 cosmic-applet/target/release/cyclone2-applet "$HOME/.local/bin/cyclone2-applet"
   mkdir -p "$HOME/.local/share/applications"
-  install -m0644 cosmic-applet/data/io.github.vdemonchy.Cyclone2Battery.desktop \
-    "$HOME/.local/share/applications/io.github.vdemonchy.Cyclone2Battery.desktop"
+  install -m0644 cosmic-applet/data/io.github.vdemonchy.Cyclone2Linux.desktop \
+    "$HOME/.local/share/applications/io.github.vdemonchy.Cyclone2Linux.desktop"
   echo "COSMIC applet installed."
-  echo "Add it via: Settings → Desktop → Panel (or Dock) → Configure applets → add 'Cyclone 2 Battery'."
+  echo "Add it via: Settings → Desktop → Panel (or Dock) → Configure applets → add 'Cyclone 2'."
 else
-  EXT_SRC="extension/cyclone2-battery@vdemonchy.github.io"
-  EXT_DST="$HOME/.local/share/gnome-shell/extensions/cyclone2-battery@vdemonchy.github.io"
+  EXT_SRC="extension/cyclone2-linux@vdemonchy.github.io"
+  EXT_DST="$HOME/.local/share/gnome-shell/extensions/cyclone2-linux@vdemonchy.github.io"
   mkdir -p "$EXT_DST"
   cp -r "$EXT_SRC/." "$EXT_DST/"
   glib-compile-schemas "$EXT_DST/schemas"
-  echo "extension installed; log out/in, then: gnome-extensions enable cyclone2-battery@vdemonchy.github.io"
+  echo "extension installed; log out/in, then: gnome-extensions enable cyclone2-linux@vdemonchy.github.io"
 fi

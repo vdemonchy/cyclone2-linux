@@ -3,7 +3,7 @@ name: Release
 # Build and publish installable artifacts when a version tag is pushed
 # (e.g. `git tag v1.0.0 && git push origin v1.0.0`). Artifacts are attached to
 # the GitHub Release for that tag:
-#   - cyclone2-battery@vdemonchy.github.io.shell-extension.zip  (GNOME extension)
+#   - cyclone2-linux@vdemonchy.github.io.shell-extension.zip  (GNOME extension)
 #   - cyclone2-applet-<tag>-x86_64-linux.tar.gz                 (COSMIC applet + daemon)
 #   - cyclone2-<tag>-x86_64-linux                               (daemon, shared by both)
 on:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ github.ref_name }}
-      EXT_UUID: cyclone2-battery@vdemonchy.github.io
+      EXT_UUID: cyclone2-linux@vdemonchy.github.io
     steps:
       - uses: actions/checkout@v6
 
@@ -62,7 +62,7 @@ jobs:
           stage="cyclone2-applet-${VERSION}-x86_64-linux"
           mkdir -p "dist/${stage}"
           cp cosmic-applet/target/release/cyclone2-applet "dist/${stage}/"
-          cp cosmic-applet/data/io.github.vdemonchy.Cyclone2Battery.desktop "dist/${stage}/"
+          cp cosmic-applet/data/io.github.vdemonchy.Cyclone2Linux.desktop "dist/${stage}/"
           cp "dist/cyclone2-${VERSION}-x86_64-linux" "dist/${stage}/cyclone2"
           cat > "dist/${stage}/INSTALL.txt" <<'EOF'
           COSMIC applet for the GameSir Cyclone 2 (x86_64 Linux).
@@ -70,11 +70,11 @@ jobs:
           1. Install the binaries to ~/.local/bin:
                install -m0755 cyclone2-applet cyclone2 ~/.local/bin/
           2. Install the desktop entry:
-               install -m0644 io.github.vdemonchy.Cyclone2Battery.desktop \
+               install -m0644 io.github.vdemonchy.Cyclone2Linux.desktop \
                  ~/.local/share/applications/
           3. Install the udev rule + enable the systemd user service — see the
              repository's install.sh for those DE-independent steps.
-          4. Add "Cyclone 2 Battery" to your panel:
+          4. Add "Cyclone 2" to your panel:
              Settings -> Desktop -> Panel/Dock -> Configure applets.
           EOF
           tar -C dist -czf "dist/${stage}.tar.gz" "${stage}"

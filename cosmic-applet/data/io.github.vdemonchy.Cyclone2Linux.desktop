@@ -1,12 +1,12 @@
 [Desktop Entry]
-Name=Cyclone 2 Battery
-Comment=GameSir Cyclone 2 controller battery indicator
+Name=Cyclone 2
+Comment=GameSir Cyclone 2 controller battery, mode, and RGB lighting
 Type=Application
 Exec=cyclone2-applet
 Icon=input-gaming-symbolic
 Terminal=false
 Categories=COSMIC;
-Keywords=battery;controller;gamepad;cyclone;gamesir;
+Keywords=battery;controller;gamepad;cyclone;gamesir;rgb;lighting;
 StartupNotify=true
 NoDisplay=true
 X-CosmicApplet=true

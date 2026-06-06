@@ -5,8 +5,8 @@ package reader
 import (
 	"time"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
-	"github.com/victordemonchy/cyclone2-battery/internal/protocol"
+	"github.com/vdemonchy/cyclone2-linux/internal/hidraw"
+	"github.com/vdemonchy/cyclone2-linux/internal/protocol"
 )
 
 // ReadDS4 reads battery from the DS4-mode vendor feature report 0x12 (byte 10 =

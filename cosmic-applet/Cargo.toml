@@ -2,7 +2,7 @@
 name = "cyclone2-applet"
 version = "0.1.0"
 edition = "2021"
-description = "GameSir Cyclone 2 battery applet for the COSMIC desktop"
+description = "GameSir Cyclone 2 battery and RGB applet for the COSMIC desktop"
 
 [[bin]]
 name = "cyclone2-applet"
