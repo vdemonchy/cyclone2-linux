@@ -525,51 +525,68 @@ impl cosmic::Application for Cyclone2Applet {
             ))
             .push(cosmic::applet::padded_control(widget::text::heading(
                 "Controller lighting",
-            )))
-            .push(cosmic::applet::padded_control(widget::settings::item(
+            )));
+
+        // RGB control is only possible over the vendor interface, which the
+        // controller exposes only in XInput mode (GameSir Connect requires it
+        // too). Outside XInput, render no controls at all — just explain why.
+        let xinput = self.state.present && self.state.mode == "xinput";
+        if !xinput {
+            let why = if self.state.present {
+                format!(
+                    "Unavailable in {} mode — RGB control works only in XInput mode.",
+                    state::mode_name(&self.state.mode)
+                )
+            } else {
+                "Connect a controller in XInput mode to control the lighting.".into()
+            };
+            content = content.push(cosmic::applet::padded_control(widget::text::caption(why)));
+        } else {
+            content = content.push(cosmic::applet::padded_control(widget::settings::item(
                 "Control lighting",
                 widget::toggler(self.config.rgb_enabled).on_toggle(Message::ToggleRgb),
             )));
 
-        if self.config.rgb_enabled {
-            let brightness = self.config.rgb_brightness;
-            content = content.push(cosmic::applet::padded_control(widget::settings::item(
-                format!("Brightness: {brightness}%"),
-                widget::slider(0..=100, brightness, Message::SetBrightness)
-                    .on_release(Message::BrightnessReleased),
-            )));
-            for i in 0..ZONE_COUNT {
-                // Hex field with a live colour-swatch preview as its leading icon.
-                // Borrow the buffer from self so it outlives the returned element.
-                let field = widget::text_input("ffffff", &self.zone_hex[i])
-                    .leading_icon(
-                        color_button(None, Some(color_from_hex(&self.zone_hex[i])), Length::Fixed(16.0))
-                            .into(),
-                    )
-                    .on_input(move |s| Message::ZoneHexEdit(i, s))
-                    .on_submit(move |_| Message::ZoneHexSubmit(i))
-                    .width(Length::Fixed(150.0));
+            if self.config.rgb_enabled {
+                let brightness = self.config.rgb_brightness;
                 content = content.push(cosmic::applet::padded_control(widget::settings::item(
-                    ZONE_NAMES[i],
-                    field,
+                    format!("Brightness: {brightness}%"),
+                    widget::slider(0..=100, brightness, Message::SetBrightness)
+                        .on_release(Message::BrightnessReleased),
                 )));
-                // Quick-pick palette row that applies immediately to this zone.
-                let mut palette = widget::Row::with_capacity(SWATCHES.len()).spacing(4);
-                for swatch in SWATCHES {
-                    palette = palette.push(color_button(
-                        Some(Message::SetZone(i, swatch.to_string())),
-                        Some(color_from_hex(swatch)),
-                        Length::Fixed(16.0),
-                    ));
+                for i in 0..ZONE_COUNT {
+                    // Hex field with a live colour-swatch preview as its leading icon.
+                    // Borrow the buffer from self so it outlives the returned element.
+                    let field = widget::text_input("ffffff", &self.zone_hex[i])
+                        .leading_icon(
+                            color_button(None, Some(color_from_hex(&self.zone_hex[i])), Length::Fixed(16.0))
+                                .into(),
+                        )
+                        .on_input(move |s| Message::ZoneHexEdit(i, s))
+                        .on_submit(move |_| Message::ZoneHexSubmit(i))
+                        .width(Length::Fixed(150.0));
+                    content = content.push(cosmic::applet::padded_control(widget::settings::item(
+                        ZONE_NAMES[i],
+                        field,
+                    )));
+                    // Quick-pick palette row that applies immediately to this zone.
+                    let mut palette = widget::Row::with_capacity(SWATCHES.len()).spacing(4);
+                    for swatch in SWATCHES {
+                        palette = palette.push(color_button(
+                            Some(Message::SetZone(i, swatch.to_string())),
+                            Some(color_from_hex(swatch)),
+                            Length::Fixed(16.0),
+                        ));
+                    }
+                    content = content.push(cosmic::applet::padded_control(palette));
                 }
-                content = content.push(cosmic::applet::padded_control(palette));
             }
         }
 
         // With lighting expanded the popup can exceed the screen height (the LED
         // zone controls are tall), clipping the lower zones. Cap the height and
         // let it scroll so every zone stays reachable.
-        let body: Element<'_, Message> = if self.config.rgb_enabled {
+        let body: Element<'_, Message> = if xinput && self.config.rgb_enabled {
             widget::scrollable(content)
                 .height(Length::Fixed(720.0))
                 .into()
