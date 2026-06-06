@@ -1,10 +1,28 @@
 import Adw from 'gi://Adw';
 import Gtk from 'gi://Gtk';
 import Gdk from 'gi://Gdk';
+import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
 // LED zones, ordered to match the daemon's protocol.LEDZoneNames.
 const ZONE_NAMES = ['Left', 'Right', 'Logo', 'Center'];
+
+const MODE_NAMES = {xinput: 'XInput', ds4: 'DS4', switch: 'Switch', hid: 'HID', unknown: 'Unknown'};
+const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-battery.json']);
+
+// Read the controller's current mode from the daemon's state file, or null if no
+// controller is present / the file is unreadable.
+function readControllerMode() {
+    try {
+        const [ok, contents] = Gio.File.new_for_path(STATE_PATH).load_contents(null);
+        if (!ok) return null;
+        const s = JSON.parse(new TextDecoder().decode(contents));
+        return s && s.present ? (s.mode || null) : null;
+    } catch (_e) {
+        return null;
+    }
+}
 
 function hexToRgba(hex) {
     const rgba = new Gdk.RGBA();
@@ -153,19 +171,40 @@ export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
             gatedRows.push(zoneRow);
         });
 
-        // Keep brightness and all zone controls greyed out until lighting control
-        // is enabled (mirrors the COSMIC applet, which hides them when off).
-        // RGB only works in XInput mode (GameSir Connect requires it too; the
-        // vendor LED interface isn't exposed in DS4/Switch mode) — note that in
-        // the description so settings that "do nothing" in other modes make sense.
+        // RGB only works in XInput mode — in DS4/Switch the controller hides the
+        // vendor LED interface entirely (GameSir Connect requires XInput too). So
+        // disable the *whole* lighting group, including the enable switch, unless
+        // the controller is currently in XInput mode. Within XInput, the per-zone
+        // controls additionally follow the enable switch.
         const syncSensitive = () => {
+            const mode = readControllerMode();
+            const xinput = mode === 'xinput';
             const on = settings.get_boolean('rgb-enabled');
-            for (const r of gatedRows) r.sensitive = on;
-            rgbGroup.set_description(on
-                ? 'Applies only in XInput mode (USB 3537:100b); the controller hides the LED interface in DS4/Switch mode. Settings are saved and applied when the controller is in XInput mode.'
-                : 'Enable "Control lighting" to manage the controller LEDs. Works in XInput mode only.');
+            enableRow.sensitive = xinput;
+            for (const r of gatedRows) r.sensitive = xinput && on;
+            if (!xinput) {
+                const where = mode ? `${MODE_NAMES[mode] || mode} mode` : 'no controller connected';
+                rgbGroup.set_description(
+                    `Unavailable (${where}). RGB control works only in XInput mode (USB 3537:100b).`);
+            } else {
+                rgbGroup.set_description(on
+                    ? 'Per-zone colours and brightness, applied to the controller.'
+                    : 'Enable "Control lighting" to manage the controller LEDs.');
+            }
         };
         settings.connect('changed::rgb-enabled', syncSensitive);
+
+        // Re-evaluate when the controller mode changes (e.g. user switches modes
+        // while the window is open). Clean up the monitor when the window closes.
+        const stateMonitor = Gio.File.new_for_path(STATE_PATH)
+            .monitor(Gio.FileMonitorFlags.NONE, null);
+        const monitorId = stateMonitor.connect('changed', () => syncSensitive());
+        window.connect('close-request', () => {
+            stateMonitor.disconnect(monitorId);
+            stateMonitor.cancel();
+            return false;
+        });
+
         syncSensitive();
 
         page.add(rgbGroup);

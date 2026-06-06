@@ -120,9 +120,9 @@ protocol was reverse-engineered — see [`docs/protocol.md`](docs/protocol.md)).
 Nintendo device and **hides the vendor LED interface entirely** — so there is no
 way to set the lighting in those modes. This is a hardware/firmware limitation,
 not a cyclone2 one: GameSir's own software [requires XInput mode to connect](https://gamesir.com/pages/gamesir-connect-software)
-as well. The applet/extension keep the controls editable but mark them as
-requiring XInput mode; the daemon applies the settings whenever an XInput
-controller is connected.
+as well. The applet/extension therefore **disable the lighting controls entirely
+unless the controller is in XInput mode** (showing why instead); the daemon
+applies the saved settings whenever an XInput controller is connected.
 
 **From the UI** (recommended): in the COSMIC applet popup or the GNOME extension
 preferences, enable **Control lighting**, then set per-zone colours and
