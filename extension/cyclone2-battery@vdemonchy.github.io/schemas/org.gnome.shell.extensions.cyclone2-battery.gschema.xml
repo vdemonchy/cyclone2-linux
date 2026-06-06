@@ -29,5 +29,18 @@
       <range min="0" max="100"/>
       <summary>Battery % at or above which the icon is yellow; below is red</summary>
     </key>
+    <key name="rgb-enabled" type="b">
+      <default>false</default>
+      <summary>Manage the controller RGB lighting from this extension</summary>
+    </key>
+    <key name="rgb-brightness" type="i">
+      <default>100</default>
+      <range min="0" max="100"/>
+      <summary>Overall LED brightness (percent)</summary>
+    </key>
+    <key name="rgb-zones" type="as">
+      <default>["ffffff","ffffff","ffffff","ffffff"]</default>
+      <summary>Per-zone LED colours as RRGGBB hex, ordered [Left, Right, Logo, Center]</summary>
+    </key>
   </schema>
 </schemalist>

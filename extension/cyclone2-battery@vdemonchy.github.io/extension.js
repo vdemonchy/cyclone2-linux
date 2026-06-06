@@ -188,6 +188,9 @@ export default class Cyclone2BatteryExtension extends Extension {
         Main.panel.addToStatusArea(this.uuid, this._indicator);
         this._intervalId = this._settings.connect('changed::poll-interval', () => this._writeConfig());
         this._thresholdId = this._settings.connect('changed::low-battery-threshold', () => this._writeConfig());
+        this._rgbEnabledId = this._settings.connect('changed::rgb-enabled', () => this._writeConfig());
+        this._rgbBrightnessId = this._settings.connect('changed::rgb-brightness', () => this._writeConfig());
+        this._rgbZonesId = this._settings.connect('changed::rgb-zones', () => this._writeConfig());
         this._writeConfig();
 
         this._file = Gio.File.new_for_path(STATE_PATH);
@@ -218,7 +221,16 @@ export default class Cyclone2BatteryExtension extends Extension {
             const path = GLib.build_filenamev([dir, 'config.json']);
             const seconds = this._settings.get_int('poll-interval');
             const threshold = this._settings.get_int('low-battery-threshold');
-            const data = JSON.stringify({interval_seconds: seconds, low_battery_threshold: threshold});
+            const config = {interval_seconds: seconds, low_battery_threshold: threshold};
+            // Only emit rgb when the user opted in, so battery-only setups leave
+            // the controller's lighting untouched.
+            if (this._settings.get_boolean('rgb-enabled')) {
+                config.rgb = {
+                    brightness: this._settings.get_int('rgb-brightness'),
+                    zones: this._settings.get_strv('rgb-zones'),
+                };
+            }
+            const data = JSON.stringify(config);
             Gio.File.new_for_path(path).replace_contents(
                 new TextEncoder().encode(data), null, false,
                 Gio.FileCreateFlags.REPLACE_DESTINATION, null);
@@ -251,6 +263,12 @@ export default class Cyclone2BatteryExtension extends Extension {
         if (this._thresholdId) {
             this._settings.disconnect(this._thresholdId);
             this._thresholdId = 0;
+        }
+        for (const id of ['_rgbEnabledId', '_rgbBrightnessId', '_rgbZonesId']) {
+            if (this[id]) {
+                this._settings.disconnect(this[id]);
+                this[id] = 0;
+            }
         }
         this._settings = null;
     }
