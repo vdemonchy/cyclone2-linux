@@ -1,15 +1,42 @@
-use crate::config::{self, AppletConfig, DisplayMode};
+use crate::config::{self, AppletConfig, DisplayMode, ZONE_COUNT, ZONE_NAMES};
 use crate::state::{self, Display, State};
 use crate::watcher;
 
 use cosmic::app::{Core, Task};
 use cosmic::iced::window::Id;
-use cosmic::iced::{Alignment, Length, Rectangle, Subscription, Vector};
+use cosmic::iced::{Alignment, Color, Length, Rectangle, Subscription, Vector};
 use cosmic::surface::action::{app_popup, destroy_popup};
+use cosmic::widget::color_picker::color_button;
 use cosmic::widget;
 use cosmic::Element;
 use cosmic_config::CosmicConfigEntry;
 use std::path::PathBuf;
+
+/// Quick-pick palette offered under each zone's hex field.
+const SWATCHES: [&str; 9] = [
+    "ff0000", "ff8800", "ffff00", "00ff00", "00ffff", "0000ff", "ff00ff", "ffffff", "000000",
+];
+
+/// Normalise a user-typed colour to lowercase 6-digit hex, or None if invalid.
+fn normalize_hex(s: &str) -> Option<String> {
+    let s = s.trim().trim_start_matches('#');
+    if s.len() == 6 && s.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Some(s.to_ascii_lowercase())
+    } else {
+        None
+    }
+}
+
+/// Parse an "RRGGBB" hex string into an iced Color (white on failure).
+fn color_from_hex(s: &str) -> Color {
+    let s = s.trim().trim_start_matches('#');
+    if s.len() == 6 {
+        if let Ok(v) = u32::from_str_radix(s, 16) {
+            return Color::from_rgb8((v >> 16) as u8, (v >> 8) as u8, v as u8);
+        }
+    }
+    Color::WHITE
+}
 
 pub struct Cyclone2Applet {
     core: Core,
@@ -20,6 +47,9 @@ pub struct Cyclone2Applet {
     state_path: PathBuf,
     /// Advances each animation tick to breathe the icon brightness while charging.
     charge_phase: f32,
+    /// Live text-field contents for each zone's hex entry (ordered like
+    /// ZONE_NAMES). Applied to the config on submit / swatch click.
+    zone_hex: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +61,15 @@ pub enum Message {
     SetThreshold(i32),
     SetLevelHigh(i32),
     SetLevelLow(i32),
+    ToggleRgb(bool),
+    /// Apply a colour to a zone (from a swatch or a submitted hex field).
+    SetZone(usize, String),
+    /// Live edit of a zone's hex field (not yet applied).
+    ZoneHexEdit(usize, String),
+    /// Commit the typed hex for a zone (Enter in the field).
+    ZoneHexSubmit(usize),
+    SetBrightness(i32),
+    BrightnessReleased,
     Tick,
     Surface(cosmic::surface::Action),
 }
@@ -80,13 +119,39 @@ impl Cyclone2Applet {
         }
     }
 
-    /// Write the daemon's config.json (poll interval + low-battery threshold).
+    /// Write the daemon's config.json (poll interval, low-battery threshold and,
+    /// when lighting control is enabled, the RGB settings).
     fn write_daemon_config(&self) {
-        let _ = config::write_daemon_config(
-            &config::daemon_config_dir(),
-            self.config.poll_interval,
-            self.config.low_battery_threshold,
-        );
+        let _ = config::write_daemon_config(&config::daemon_config_dir(), &self.config);
+    }
+
+    /// Seed each zone's hex field from the saved colours (padded to ZONE_COUNT).
+    fn zone_hex_from(cfg: &AppletConfig) -> Vec<String> {
+        (0..ZONE_COUNT)
+            .map(|i| {
+                cfg.rgb_zones
+                    .get(i)
+                    .cloned()
+                    .unwrap_or_else(|| "ffffff".to_string())
+            })
+            .collect()
+    }
+
+    /// Apply a validated hex colour to zone `i`: update config, enable lighting,
+    /// persist, and push to the daemon.
+    fn apply_zone(&mut self, i: usize, hex: String) {
+        while self.config.rgb_zones.len() < ZONE_COUNT {
+            self.config.rgb_zones.push("ffffff".to_string());
+        }
+        if let Some(slot) = self.config.rgb_zones.get_mut(i) {
+            *slot = hex.clone();
+        }
+        if let Some(buf) = self.zone_hex.get_mut(i) {
+            *buf = hex;
+        }
+        self.config.rgb_enabled = true;
+        self.persist();
+        self.write_daemon_config();
     }
 }
 
@@ -143,6 +208,7 @@ impl cosmic::Application for Cyclone2Applet {
         .and_then(|c| AppletConfig::get_entry(&c).ok())
         .unwrap_or_default();
 
+        let zone_hex = Self::zone_hex_from(&config);
         let mut app = Cyclone2Applet {
             core,
             config,
@@ -151,6 +217,7 @@ impl cosmic::Application for Cyclone2Applet {
             popup: None,
             state_path: state::state_path(),
             charge_phase: 0.0,
+            zone_hex,
         };
         app.reload_state();
         // Sync settings to the daemon's config.json on startup so the configured
@@ -220,6 +287,50 @@ impl cosmic::Application for Cyclone2Applet {
                 // Yellow must stay strictly below the green threshold.
                 self.config.level_low = v.min(self.config.level_high - 5);
                 self.persist();
+                Task::none()
+            }
+            Message::ToggleRgb(on) => {
+                self.config.rgb_enabled = on;
+                self.persist();
+                self.write_daemon_config();
+                Task::none()
+            }
+            Message::SetZone(i, hex) => {
+                if let Some(h) = normalize_hex(&hex) {
+                    self.apply_zone(i, h);
+                }
+                Task::none()
+            }
+            Message::ZoneHexEdit(i, s) => {
+                if let Some(buf) = self.zone_hex.get_mut(i) {
+                    *buf = s;
+                }
+                Task::none()
+            }
+            Message::ZoneHexSubmit(i) => {
+                let typed = self.zone_hex.get(i).cloned().unwrap_or_default();
+                match normalize_hex(&typed) {
+                    Some(h) => self.apply_zone(i, h),
+                    // Invalid entry: revert the field to the stored colour.
+                    None => {
+                        if let (Some(buf), Some(saved)) =
+                            (self.zone_hex.get_mut(i), self.config.rgb_zones.get(i))
+                        {
+                            *buf = saved.clone();
+                        }
+                    }
+                }
+                Task::none()
+            }
+            Message::SetBrightness(v) => {
+                // Live update for slider feedback; written out on release.
+                self.config.rgb_brightness = v.clamp(0, 100);
+                Task::none()
+            }
+            Message::BrightnessReleased => {
+                self.config.rgb_enabled = true;
+                self.persist();
+                self.write_daemon_config();
                 Task::none()
             }
         }
@@ -368,7 +479,7 @@ impl cosmic::Application for Cyclone2Applet {
             Message::SetLevelLow,
         );
 
-        let content = widget::Column::with_capacity(14)
+        let mut content = widget::Column::with_capacity(20)
             .spacing(8)
             .push(cosmic::applet::padded_control(widget::text::title4(
                 self.mode_line(),
@@ -406,7 +517,66 @@ impl cosmic::Application for Cyclone2Applet {
                 "Below the yellow threshold the icon is red.",
             )));
 
-        self.core.applet.popup_container(content).into()
+        // Controller lighting (RGB). XInput mode only; a toggle gates whether the
+        // daemon manages the lighting at all.
+        content = content
+            .push(cosmic::applet::padded_control(
+                widget::divider::horizontal::default(),
+            ))
+            .push(cosmic::applet::padded_control(widget::text::heading(
+                "Controller lighting",
+            )))
+            .push(cosmic::applet::padded_control(widget::settings::item(
+                "Control lighting",
+                widget::toggler(self.config.rgb_enabled).on_toggle(Message::ToggleRgb),
+            )));
+
+        if self.config.rgb_enabled {
+            let brightness = self.config.rgb_brightness;
+            content = content.push(cosmic::applet::padded_control(widget::settings::item(
+                format!("Brightness: {brightness}%"),
+                widget::slider(0..=100, brightness, Message::SetBrightness)
+                    .on_release(Message::BrightnessReleased),
+            )));
+            for i in 0..ZONE_COUNT {
+                // Hex field with a live colour-swatch preview as its leading icon.
+                // Borrow the buffer from self so it outlives the returned element.
+                let field = widget::text_input("ffffff", &self.zone_hex[i])
+                    .leading_icon(
+                        color_button(None, Some(color_from_hex(&self.zone_hex[i])), Length::Fixed(16.0))
+                            .into(),
+                    )
+                    .on_input(move |s| Message::ZoneHexEdit(i, s))
+                    .on_submit(move |_| Message::ZoneHexSubmit(i))
+                    .width(Length::Fixed(150.0));
+                content = content.push(cosmic::applet::padded_control(widget::settings::item(
+                    ZONE_NAMES[i],
+                    field,
+                )));
+                // Quick-pick palette row that applies immediately to this zone.
+                let mut palette = widget::Row::with_capacity(SWATCHES.len()).spacing(4);
+                for swatch in SWATCHES {
+                    palette = palette.push(color_button(
+                        Some(Message::SetZone(i, swatch.to_string())),
+                        Some(color_from_hex(swatch)),
+                        Length::Fixed(16.0),
+                    ));
+                }
+                content = content.push(cosmic::applet::padded_control(palette));
+            }
+        }
+
+        // With lighting expanded the popup can exceed the screen height (the LED
+        // zone controls are tall), clipping the lower zones. Cap the height and
+        // let it scroll so every zone stays reachable.
+        let body: Element<'_, Message> = if self.config.rgb_enabled {
+            widget::scrollable(content)
+                .height(Length::Fixed(720.0))
+                .into()
+        } else {
+            content.into()
+        };
+        self.core.applet.popup_container(body).into()
     }
 
     fn on_close_requested(&self, id: Id) -> Option<Message> {

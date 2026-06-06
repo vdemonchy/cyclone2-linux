@@ -106,6 +106,30 @@ so COSMIC rescans the desktop entries.
 
 - `cyclone2 status` — print mode + battery once (`72% (xinput)`); `--json` for machine output.
 - `cyclone2 daemon` — the poll loop (normally run by the systemd user service).
+- `cyclone2 rgb …` — control the RGB lighting (see below).
+
+## RGB lighting
+
+The Cyclone 2 has four addressable RGB zones — **Left, Right, Logo, Center** —
+plus a global brightness, normally only configurable via GameSir's Windows app.
+cyclone2 drives them natively over the vendor HID interface (**XInput mode only**;
+the lighting protocol was reverse-engineered — see [`docs/protocol.md`](docs/protocol.md)).
+
+**From the UI** (recommended): in the COSMIC applet popup or the GNOME extension
+preferences, enable **Control lighting**, then set per-zone colours and
+brightness. Settings are written to `config.json`; the **daemon** applies them
+and re-applies on reconnect, so they persist. Left off, the controller's lighting
+is untouched.
+
+**From the CLI:**
+```
+cyclone2 rgb color ff0000              # solid red on all zones
+cyclone2 rgb zones ff0000 00ff00 0000ff ffffff   # Left Right Logo Center
+cyclone2 rgb brightness 50             # 0–100
+cyclone2 rgb off                       # lights off
+```
+The CLI writes directly to the controller; the daemon-managed `config.json`
+settings are what survive restarts and reconnects.
 
 ## The indicator
 
@@ -155,6 +179,10 @@ popup):
   above the high threshold, yellow at or above the low threshold, red below it
   (defaults: green ≥60%, yellow ≥25%). The green threshold can't be set at or
   below the yellow one.
+- **Controller lighting** — opt-in **Control lighting** toggle, a brightness
+  slider, and a colour picker per zone (Left / Right / Logo / Center). Written to
+  `config.json` as an `rgb` block; the daemon applies it (XInput mode only) and
+  re-applies on reconnect. Off by default, so battery-only setups are untouched.
 
 ## How it works
 

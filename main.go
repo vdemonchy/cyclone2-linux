@@ -11,7 +11,8 @@ func usage() {
 usage:
   cyclone2 probe     reverse-engineering helper (dumps HID frames)
   cyclone2 status    print battery percentage once (--json for machine output)
-  cyclone2 daemon    poll battery and write the state file for the GNOME extension`)
+  cyclone2 daemon    poll battery and write the state file for the GNOME extension
+  cyclone2 rgb       control the RGB lighting (color/brightness/effect)`)
 }
 
 func main() {
@@ -27,6 +28,8 @@ func main() {
 		err = runStatus(os.Args[2:])
 	case "daemon":
 		err = runDaemon(os.Args[2:])
+	case "rgb":
+		err = runRGB(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown subcommand %q\n\n", os.Args[1])
 		usage()

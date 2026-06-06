@@ -128,3 +128,70 @@ Read `capacity` if present (numeric percent); else read `capacity_level` (coarse
 | `054c:09cc` | ds4 | vendor HID `GET_FEATURE 0x12` byte 10 (kernel `power_supply` capacity is bogus); charging from `power_supply` `status` |
 | `057e:2009` | switch | kernel `power_supply` (coarse `capacity_level`) |
 | `3537:0575` | hid | none — indicator hidden (HID mode; also the dongle's id when the controller is off) |
+
+---
+
+# RGB lighting — vendor HID command protocol (XInput mode)
+
+Reverse-engineered 2026-06-06 by capturing GameSir Connect (running under
+WinBoat, which passes the controller through to QEMU so the app's commands still
+cross the host USB bus) with `usbmon`. See `docs/rgb-capture.sh` (capture) and
+`docs/rgb-decode.py` (decode). **XInput mode only** (`3537:100b`); the other
+modes enumerate as different USB devices that don't speak this protocol.
+
+## Transport
+Lighting is driven over the **same vendor OUTPUT report `0x0F`** as the battery
+wake, on the vendor interface (interface 1, `/dev/hidrawN`), as a 64-byte
+interrupt-OUT transfer (endpoint 4). Every command is a single register write:
+
+```
+byte:  0    1    2    3    4     5      6 .. 6+len-1
+      0F   03   20   00  <reg> <len>   <data[len]>      rest zero-padded to 64
+       │    │    │             │
+       │    │    │             └ data length
+       │    │    └ 0x20 = LED subsystem selector
+       │    └ opcode 0x03 (same opcode as the battery wake; battery uses byte[2]=0x00)
+       └ report id 0x0F
+```
+
+## Registers
+| reg | meaning | data |
+|---|---|---|
+| `0x01` | mode / effect select | `<effectId> 05 <speed> <brightness> <RGB palette…>`, padded to 58 bytes |
+| `0x04` | **brightness** | 1 byte, `0–100` |
+| `0x05` | zone **Left** colour | 3 bytes `RR GG BB` |
+| `0x08` | zone **Right** colour | 3 bytes `RR GG BB` |
+| `0x0e` | zone **Logo** colour | 3 bytes `RR GG BB` |
+| `0x11` | zone **Center** colour | 3 bytes `RR GG BB` |
+| `0x03` | effect speed | 1 byte |
+| `0x1b`, `0x3b`, `0x75` | animated-effect palette / preview buffers | (not needed for solid colour) |
+
+Effect ids on reg `0x01`: **`0x01` = static/solid**, `0x02` = breathing,
+`0x08`/`0x1b` = rainbow. Only `0x01` (static) is used by this project.
+
+## Setting a solid / per-zone colour (confirmed on hardware)
+1. **Enter static mode** once — reg `0x01`, effect `0x01`:
+   `0f 03 20 00 01 3a 01 05 0a 32 <RRGGBB ×7…>` (payload padded to 58 bytes).
+   Without this the controller stays in whatever animated mode was last set, and
+   zone writes only tint the running animation.
+2. **Write each zone** — reg `0x05`/`0x08`/`0x0e`/`0x11`, 3 bytes each.
+   **Crucial:** leave a short gap (~60 ms) between consecutive writes; sent
+   back-to-back the firmware silently drops some, inconsistently.
+
+The four zones are independently addressable and light up, in register order,
+**Left, Right, Logo, Center**.
+
+## Brightness
+`0f 03 20 00 04 01 <0–100>` — single register write, takes effect immediately,
+independent of the colour state.
+
+## Examples
+```
+brightness 50:        0f 03 20 00 04 01 32
+enter static (red):   0f 03 20 00 01 3a 01 05 0a 32 ff0000 ff0000 ff0000 ff0000 ff0000 ff0000 ff0000
+zone Left = red:       0f 03 20 00 05 03 ff 00 00
+zone Right = green:     0f 03 20 00 08 03 00 ff 00
+```
+
+Implemented in `internal/protocol` (builders), `rgb.go` (`cyclone2 rgb …` CLI)
+and `rgb_apply.go` (daemon applies the `rgb` block from `config.json`).

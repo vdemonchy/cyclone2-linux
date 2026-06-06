@@ -72,6 +72,7 @@ func runDaemon(args []string) error {
 		notifier.consider(last, currentThreshold())
 	}
 	poll()
+	applyRGBFromConfig() // push configured lighting on startup
 
 	ticker := time.NewTicker(curInterval)
 	defer ticker.Stop()
@@ -94,12 +95,16 @@ func runDaemon(args []string) error {
 				last = state.State{Present: false}
 				writeState(*statePath, last)
 				notifier.consider(last, currentThreshold())
+				resetRGBState() // a reconnect will need to re-enter static mode
 				log.Printf("controller disconnected")
 			} else {
+				resetRGBState() // freshly connected: re-enter static mode once
 				poll()
+				applyRGBFromConfig() // re-apply lighting on reconnect
 			}
 		case <-configCh:
 			reapply()
+			applyRGBFromConfig() // lighting settings may have changed
 		}
 	}
 }

@@ -14,6 +14,17 @@ type Config struct {
 	// LowBatteryThreshold is the percentage at or below which the daemon posts
 	// a low-battery desktop notification. 0 (or unset) disables notifications.
 	LowBatteryThreshold int `json:"low_battery_threshold"`
+	// RGB holds the lighting settings the frontends write. Nil means "not
+	// configured" — the daemon then leaves the controller's lighting untouched.
+	RGB *RGB `json:"rgb,omitempty"`
+}
+
+// RGB is the controller lighting configuration. Zones are "RRGGBB" hex strings
+// in the order [Left, Right, Logo, Center]; an empty/short list leaves the
+// missing zones untouched. Brightness is 0-100; nil leaves it untouched.
+type RGB struct {
+	Brightness *int     `json:"brightness,omitempty"`
+	Zones      []string `json:"zones,omitempty"`
 }
 
 // Path is $XDG_CONFIG_HOME/cyclone2-battery/config.json (falling back to

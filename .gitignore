@@ -3,3 +3,5 @@
 /dist/
 gschemas.compiled
 /cyclone2-battery
+# Raw usbmon capture from docs/rgb-capture.sh (large; regenerate as needed).
+docs/rgb-capture.txt
