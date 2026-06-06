@@ -5,10 +5,10 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/device"
-	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
-	"github.com/victordemonchy/cyclone2-battery/internal/powersupply"
-	"github.com/victordemonchy/cyclone2-battery/internal/reader"
+	"github.com/vdemonchy/cyclone2-linux/internal/device"
+	"github.com/vdemonchy/cyclone2-linux/internal/hidraw"
+	"github.com/vdemonchy/cyclone2-linux/internal/powersupply"
+	"github.com/vdemonchy/cyclone2-linux/internal/reader"
 )
 
 func runStatus(args []string) error {

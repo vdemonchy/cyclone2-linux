@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/state"
+	"github.com/vdemonchy/cyclone2-linux/internal/state"
 )
 
 // recorder builds a notifier whose send() just counts calls.

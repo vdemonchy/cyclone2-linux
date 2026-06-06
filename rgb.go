@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
-	"github.com/victordemonchy/cyclone2-battery/internal/protocol"
+	"github.com/vdemonchy/cyclone2-linux/internal/hidraw"
+	"github.com/vdemonchy/cyclone2-linux/internal/protocol"
 )
 
 // writeGap spaces out consecutive LED writes; the firmware drops zone writes

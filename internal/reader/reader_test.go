@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
+	"github.com/vdemonchy/cyclone2-linux/internal/hidraw"
 )
 
 type fakeDev struct {

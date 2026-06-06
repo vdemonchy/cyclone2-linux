@@ -9,7 +9,7 @@ import {ExtensionPreferences} from 'resource:///org/gnome/Shell/Extensions/js/ex
 const ZONE_NAMES = ['Left', 'Right', 'Logo', 'Center'];
 
 const MODE_NAMES = {xinput: 'XInput', ds4: 'DS4', switch: 'Switch', hid: 'HID', unknown: 'Unknown'};
-const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-battery.json']);
+const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-linux.json']);
 
 // Read the controller's current mode from the daemon's state file, or null if no
 // controller is present / the file is unreadable.
@@ -36,7 +36,7 @@ function rgbaToHex(rgba) {
     return h(to8(rgba.red)) + h(to8(rgba.green)) + h(to8(rgba.blue));
 }
 
-export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
+export default class Cyclone2Prefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
         const page = new Adw.PreferencesPage();

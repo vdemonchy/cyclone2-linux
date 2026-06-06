@@ -1,4 +1,4 @@
-module github.com/victordemonchy/cyclone2-battery
+module github.com/vdemonchy/cyclone2-linux
 
 go 1.24
 

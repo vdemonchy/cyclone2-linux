@@ -35,7 +35,7 @@ func TestRoundTrip(t *testing.T) {
 
 func TestDefaultPathHonoursXDG(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "/run/user/1000")
-	if got := DefaultPath(); got != "/run/user/1000/cyclone2-battery.json" {
+	if got := DefaultPath(); got != "/run/user/1000/cyclone2-linux.json" {
 		t.Fatalf("got %q", got)
 	}
 }

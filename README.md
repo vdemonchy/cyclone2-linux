@@ -1,11 +1,35 @@
-# cyclone2-battery
+# cyclone2-linux
 
-Battery level + connection mode for the **GameSir Cyclone 2** on Linux, shown as
-a GNOME top-bar indicator.
+Battery, connection mode, and RGB lighting control for the **GameSir Cyclone 2**
+on Linux — as a top-bar indicator on GNOME (Shell extension) and COSMIC (native
+applet).
 
-The Cyclone 2 can present as several different USB controllers. A dependency-free
-Go daemon detects the current mode, reads the battery from the right source, and
-writes a small JSON state file; a GNOME Shell extension displays it.
+The Cyclone 2 can present as several different USB controllers, each exposing the
+battery differently. A dependency-free Go daemon detects the current mode, reads
+the battery from the right source, drives the RGB lighting, and writes a small
+JSON state file that the GNOME extension or COSMIC applet displays.
+
+## Features
+
+- **Battery level in every readable mode** — XInput, DS4, and Switch, each read
+  from the source that's actually correct for it (two are reverse-engineered;
+  see [Supported modes](#supported-modes)).
+- **Automatic mode detection** with instant connect/disconnect/mode-change
+  updates over udev hotplug events.
+- **Charging detection** in all battery modes.
+- **Top-bar indicator** — controller icon tinted by battery level (configurable
+  green/yellow/red thresholds), optional level text, a pulse while charging, the
+  controller name on hover, and a menu showing the current mode and battery.
+- **Low-battery desktop notifications** from the daemon, with hysteresis so a
+  battery near the threshold doesn't spam you. Accurate in every mode, including
+  the ones the system power panel gets wrong.
+- **RGB lighting control** — four addressable zones (Left/Right/Logo/Center) plus
+  brightness, set from the UI or the CLI and re-applied on reconnect. XInput mode
+  only (a hardware limitation — see [RGB lighting](#rgb-lighting)).
+- **Two desktop frontends** — a GNOME Shell extension and a native COSMIC applet,
+  sharing the same daemon.
+- **CLI** for a one-shot battery read, the daemon, and lighting control.
+- **Configurable poll interval** with live config reload (no restart).
 
 ## Supported modes
 
@@ -23,25 +47,23 @@ fully disconnected, the indicator is hidden. Mode changes update it automaticall
 (instant, via udev hotplug events). In Switch mode GNOME also shows the battery
 natively (accurate).
 
-**Known limitation (DS4 mode):** the kernel `hid-playstation` driver derives a
-bogus `power_supply` capacity (~5% always) because the dongle doesn't populate
-the standard DS4 battery byte. GNOME may therefore show a spurious "controller
-battery low" popup in DS4 mode. This can't be suppressed via configuration —
-UPower 1.90+ removed `UPOWER_IGNORE` and offers no per-device ignore, so the only
-fixes are patching `upowerd` (overwritten on updates) or intercepting the GNOME
-notification. cyclone2-battery's own indicator shows the **correct** DS4 level
-(read from the vendor HID feature report), so the popup is cosmetic.
+**Indicator vs. system power panel.** This project's indicator (applet/extension)
+shows the correct battery in every battery-readable mode, because the daemon reads
+each mode at its real source. The desktop's *system* power panel is different: it
+only sees devices the kernel exposes through UPower, which here means Switch mode
+(`hid-nintendo`, accurate but coarse) and DS4. So for accurate per-mode battery,
+use the indicator; the system power panel is only reliable in Switch mode.
 
-**System power settings (UPower):** the indicator (applet/extension) reports the
-battery in **all** battery-readable modes. The desktop's *system* power panel,
-however, only sees what the kernel exposes as a `power_supply` device through
-UPower — and that is **only Switch mode** (`hid-nintendo`, accurate but coarse)
-plus DS4 (the bogus ~5% above). XInput battery is reverse-engineered from the
-vendor HID interface with no kernel `power_supply`, so it never appears in the
-system power panel. UPower has no userspace API to publish a custom battery, so
-surfacing the daemon's correct values there would require a dedicated kernel
-driver — intentionally out of scope. Use the indicator for accurate per-mode
-battery; the system power panel is only reliable in Switch mode.
+UPower has no userspace API to publish a custom battery, so getting the daemon's
+values into the system panel would need a dedicated kernel driver — out of scope.
+
+**DS4 false low-battery popup.** In DS4 mode the dongle never populates the
+standard DualShock battery byte, so `hid-playstation` reports a constant ~5%
+(`0 × 10 + 5`). GNOME may pop up a "controller battery low" warning as a result.
+Nothing in the config can suppress it — UPower 1.90+ dropped `UPOWER_IGNORE` and
+has no per-device ignore, leaving only a patched `upowerd` (overwritten on
+updates) or intercepting the notification. The indicator shows the real DS4 level,
+so the popup is just cosmetic.
 
 ## Requirements
 
@@ -55,12 +77,12 @@ bash install.sh
 ```
 
 This builds `~/.local/bin/cyclone2`, installs a udev rule (needs `sudo`, for
-root-free access to the XInput-mode HID node), and enables the `cyclone2-battery`
+root-free access to the XInput-mode HID node), and enables the `cyclone2-linux`
 systemd `--user` service. Then load the indicator:
 
 ```bash
 # Wayland: log out and back in (a full shell reload is required), then:
-gnome-extensions enable cyclone2-battery@vdemonchy.github.io
+gnome-extensions enable cyclone2-linux@vdemonchy.github.io
 ```
 
 ## COSMIC (CachyOS)
@@ -77,14 +99,14 @@ CYCLONE2_FRONTEND=cosmic bash install.sh
 
 This builds `cyclone2-applet` (needs **Rust stable ≥ 1.93** + libcosmic build
 deps), installs it to `~/.local/bin`, and drops a `.desktop` entry into
-`~/.local/share/applications`. Then add **Cyclone 2 Battery** to your panel:
+`~/.local/share/applications`. Then add **Cyclone 2** to your panel:
 *Settings → Desktop → Panel (or Dock) → Configure applets*.
 
 Settings (poll interval, display mode, low-battery alert, battery level colors) live in
 the applet's popup and persist via `cosmic-config`; the poll interval is also written to
-`~/.config/cyclone2-battery/config.json`, which the daemon reads live.
+`~/.config/cyclone2-linux/config.json`, which the daemon reads live.
 
-If *Cyclone 2 Battery* doesn't appear in the applet configurator right away, run
+If *Cyclone 2* doesn't appear in the applet configurator right away, run
 `update-desktop-database ~/.local/share/applications` and/or log out and back in
 so COSMIC rescans the desktop entries.
 
@@ -97,10 +119,10 @@ so COSMIC rescans the desktop entries.
    correct Mode and Battery.
 3. Power the controller off or switch to HID mode: the indicator hides (no
    readable battery).
-4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-battery.json` (e.g. flip `percent`) and
+4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-linux.json` (e.g. flip `percent`) and
    confirm the panel updates within a second.
 5. Change the poll interval in the popup; confirm
-   `~/.config/cyclone2-battery/config.json` updates and the daemon honors it.
+   `~/.config/cyclone2-linux/config.json` updates and the daemon honors it.
 
 ## Usage
 
@@ -173,11 +195,11 @@ present on GNOME/COSMIC).
 
 ## Configuration
 
-Open the GNOME **Extensions** app → *Cyclone 2 Battery* (COSMIC: the applet
+Open the GNOME **Extensions** app → *Cyclone 2* (COSMIC: the applet
 popup):
 
 - **Battery poll interval** — `10s / 30s / 1 min / 5 min` (default 1 min). The
-  frontend writes it to `~/.config/cyclone2-battery/config.json`, which the
+  frontend writes it to `~/.config/cyclone2-linux/config.json`, which the
   daemon reads live (no restart). CLI override precedence: `--interval` flag >
   `CYCLONE2_INTERVAL` env > config file > 60s default (5s minimum).
 - **Top-bar display** — *Icon only* / *Icon + text*.
@@ -202,7 +224,7 @@ controller (USB: 3537:100b | 054c:09cc | 057e:2009 | 3537:0575)
    │    • DS4: vendor HID feature report; Switch: kernel power_supply sysfs
    │    • + udev netlink for instant connect/disconnect
    ▼
-$XDG_RUNTIME_DIR/cyclone2-battery.json
+$XDG_RUNTIME_DIR/cyclone2-linux.json
    {"present":true,"mode":"ds4","percent":72,"charging":false,"battery_known":true,...}
    │  Gio.FileMonitor
    ▼
@@ -212,11 +234,7 @@ GNOME Shell extension → top-bar indicator + menu
 ## Protocol / discovery
 
 See [`docs/protocol.md`](docs/protocol.md): the reverse-engineered XInput vendor
-HID battery (report `0x0F` request → report `0x12` byte 36), and the DS4/Switch
-`power_supply` sysfs layout. The XInput charging-flag byte is tentative; the
-percentage is confirmed.
-
-## Design docs
-
-- Specs: [`docs/superpowers/specs/`](docs/superpowers/specs/) (v1 battery, v2 UX, v3 multi-mode)
-- Plans: [`docs/superpowers/plans/`](docs/superpowers/plans/)
+HID battery (report `0x0F` request → report `0x12` byte 36), the DS4/Switch
+`power_supply` sysfs layout, and the RGB lighting command protocol. The capture
+and decode helpers used for the reverse-engineering live in `docs/rgb-capture.sh`
+and `docs/rgb-decode.py`.

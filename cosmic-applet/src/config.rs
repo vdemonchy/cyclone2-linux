@@ -65,7 +65,7 @@ impl Default for AppletConfig {
     }
 }
 
-/// $XDG_CONFIG_HOME/cyclone2-battery, fallback ~/.config/cyclone2-battery.
+/// $XDG_CONFIG_HOME/cyclone2-linux, fallback ~/.config/cyclone2-linux.
 /// Mirrors the daemon's config.Path() dir.
 pub fn daemon_config_dir() -> PathBuf {
     let base = std::env::var_os("XDG_CONFIG_HOME")
@@ -76,7 +76,7 @@ pub fn daemon_config_dir() -> PathBuf {
                 .unwrap_or_default();
             home.join(".config")
         });
-    base.join("cyclone2-battery")
+    base.join("cyclone2-linux")
 }
 
 /// The RGB block of the daemon config.json (omitted entirely when lighting is

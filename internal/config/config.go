@@ -27,15 +27,15 @@ type RGB struct {
 	Zones      []string `json:"zones,omitempty"`
 }
 
-// Path is $XDG_CONFIG_HOME/cyclone2-battery/config.json (falling back to
-// ~/.config/cyclone2-battery/config.json).
+// Path is $XDG_CONFIG_HOME/cyclone2-linux/config.json (falling back to
+// ~/.config/cyclone2-linux/config.json).
 func Path() string {
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	if dir == "" {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(dir, "cyclone2-battery", "config.json")
+	return filepath.Join(dir, "cyclone2-linux", "config.json")
 }
 
 // Read returns the config. A missing file is not an error — it yields a zero

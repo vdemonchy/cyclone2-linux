@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <enum id="org.gnome.shell.extensions.cyclone2-battery.display-mode">
+  <enum id="org.gnome.shell.extensions.cyclone2-linux.display-mode">
     <value nick="icon-only" value="0"/>
     <value nick="icon-text" value="1"/>
   </enum>
-  <schema id="org.gnome.shell.extensions.cyclone2-battery"
-          path="/org/gnome/shell/extensions/cyclone2-battery/">
-    <key name="display-mode" enum="org.gnome.shell.extensions.cyclone2-battery.display-mode">
+  <schema id="org.gnome.shell.extensions.cyclone2-linux"
+          path="/org/gnome/shell/extensions/cyclone2-linux/">
+    <key name="display-mode" enum="org.gnome.shell.extensions.cyclone2-linux.display-mode">
       <default>"icon-text"</default>
       <summary>Top-bar display mode</summary>
     </key>

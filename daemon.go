@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/victordemonchy/cyclone2-battery/internal/config"
-	"github.com/victordemonchy/cyclone2-battery/internal/device"
-	"github.com/victordemonchy/cyclone2-battery/internal/hidraw"
-	"github.com/victordemonchy/cyclone2-battery/internal/notify"
-	"github.com/victordemonchy/cyclone2-battery/internal/powersupply"
-	"github.com/victordemonchy/cyclone2-battery/internal/reader"
-	"github.com/victordemonchy/cyclone2-battery/internal/state"
-	"github.com/victordemonchy/cyclone2-battery/internal/uevent"
+	"github.com/vdemonchy/cyclone2-linux/internal/config"
+	"github.com/vdemonchy/cyclone2-linux/internal/device"
+	"github.com/vdemonchy/cyclone2-linux/internal/hidraw"
+	"github.com/vdemonchy/cyclone2-linux/internal/notify"
+	"github.com/vdemonchy/cyclone2-linux/internal/powersupply"
+	"github.com/vdemonchy/cyclone2-linux/internal/reader"
+	"github.com/vdemonchy/cyclone2-linux/internal/state"
+	"github.com/vdemonchy/cyclone2-linux/internal/uevent"
 
 	"golang.org/x/sys/unix"
 )

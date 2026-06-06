@@ -8,7 +8,7 @@ import (
 
 func TestPathHonoursXDG(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "/cfg")
-	if got := Path(); got != "/cfg/cyclone2-battery/config.json" {
+	if got := Path(); got != "/cfg/cyclone2-linux/config.json" {
 		t.Fatalf("got %q", got)
 	}
 }
@@ -16,7 +16,7 @@ func TestPathHonoursXDG(t *testing.T) {
 func TestReadValue(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
-	cdir := filepath.Join(dir, "cyclone2-battery")
+	cdir := filepath.Join(dir, "cyclone2-linux")
 	if err := os.MkdirAll(cdir, 0o755); err != nil {
 		t.Fatal(err)
 	}

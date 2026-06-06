@@ -96,12 +96,12 @@ pub fn mode_name(mode: &str) -> String {
     .to_string()
 }
 
-/// $XDG_RUNTIME_DIR/cyclone2-battery.json, fallback to temp dir. Mirrors state.DefaultPath().
+/// $XDG_RUNTIME_DIR/cyclone2-linux.json, fallback to temp dir. Mirrors state.DefaultPath().
 pub fn state_path() -> PathBuf {
     let dir = std::env::var_os("XDG_RUNTIME_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    dir.join("cyclone2-battery.json")
+    dir.join("cyclone2-linux.json")
 }
 
 pub fn parse(bytes: &[u8]) -> Result<State, serde_json::Error> {
