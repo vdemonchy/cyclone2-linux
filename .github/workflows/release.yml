@@ -21,7 +21,7 @@ jobs:
       VERSION: ${{ github.ref_name }}
       EXT_UUID: cyclone2-battery@vdemonchy.github.io
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Best-effort dependency set for building libcosmic + packaging the
       # extension. Tweak here if a future libcosmic bump needs more system libs.
@@ -35,12 +35,13 @@ jobs:
             libfontconfig-dev
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
 
-      # rustup is preinstalled on the runner; rust-toolchain.toml pins 1.93, so
-      # cargo auto-selects it. Install it up front for a clear, cached step.
+      # No official actions/setup-rust exists, so use the runner's preinstalled
+      # rustup. rust-toolchain.toml pins 1.93, so cargo auto-selects it; install
+      # it up front for a clear, explicit step.
       - name: Install Rust toolchain (matches rust-toolchain.toml)
         run: rustup toolchain install 1.93 --profile minimal --no-self-update
 
@@ -89,6 +90,8 @@ jobs:
               && zip -r -X "${GITHUB_WORKSPACE}/dist/${EXT_UUID}.shell-extension.zip" . -x '*.zip' )
 
       # ---- publish -------------------------------------------------------
+      # GitHub's official actions/create-release + upload-release-asset are
+      # archived/deprecated, so use the official `gh` CLI (preinstalled) instead.
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
