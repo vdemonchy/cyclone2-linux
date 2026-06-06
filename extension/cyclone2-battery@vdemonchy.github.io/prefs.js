@@ -155,12 +155,15 @@ export default class Cyclone2BatteryPrefs extends ExtensionPreferences {
 
         // Keep brightness and all zone controls greyed out until lighting control
         // is enabled (mirrors the COSMIC applet, which hides them when off).
+        // RGB only works in XInput mode (GameSir Connect requires it too; the
+        // vendor LED interface isn't exposed in DS4/Switch mode) — note that in
+        // the description so settings that "do nothing" in other modes make sense.
         const syncSensitive = () => {
             const on = settings.get_boolean('rgb-enabled');
             for (const r of gatedRows) r.sensitive = on;
             rgbGroup.set_description(on
-                ? 'Per-zone RGB and brightness. Applied only in XInput mode.'
-                : 'Enable "Control lighting" to manage the controller LEDs.');
+                ? 'Applies only in XInput mode (USB 3537:100b); the controller hides the LED interface in DS4/Switch mode. Settings are saved and applied when the controller is in XInput mode.'
+                : 'Enable "Control lighting" to manage the controller LEDs. Works in XInput mode only.');
         };
         settings.connect('changed::rgb-enabled', syncSensitive);
         syncSensitive();

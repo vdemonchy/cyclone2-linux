@@ -525,11 +525,28 @@ impl cosmic::Application for Cyclone2Applet {
             ))
             .push(cosmic::applet::padded_control(widget::text::heading(
                 "Controller lighting",
-            )))
-            .push(cosmic::applet::padded_control(widget::settings::item(
-                "Control lighting",
-                widget::toggler(self.config.rgb_enabled).on_toggle(Message::ToggleRgb),
             )));
+
+        // RGB control is only possible over the vendor interface, which the
+        // controller exposes only in XInput mode (GameSir Connect requires it
+        // too). Settings stay editable so they're ready, but note when inactive.
+        let xinput = self.state.present && self.state.mode == "xinput";
+        if !xinput {
+            let why = if self.state.present {
+                format!(
+                    "Requires XInput mode (controller is in {}). Settings apply when you switch to XInput.",
+                    state::mode_name(&self.state.mode)
+                )
+            } else {
+                "Requires XInput mode. Settings apply when an XInput controller is connected.".into()
+            };
+            content = content.push(cosmic::applet::padded_control(widget::text::caption(why)));
+        }
+
+        content = content.push(cosmic::applet::padded_control(widget::settings::item(
+            "Control lighting",
+            widget::toggler(self.config.rgb_enabled).on_toggle(Message::ToggleRgb),
+        )));
 
         if self.config.rgb_enabled {
             let brightness = self.config.rgb_brightness;
