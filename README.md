@@ -109,27 +109,21 @@ Download the daemon, the GNOME extension zip, or the COSMIC applet tarball from
 the [latest release](https://github.com/vdemonchy/cyclone2-linux/releases) — see
 **[INSTALL.md](INSTALL.md)** for the exact commands.
 
-### Legacy one-shot script
-
-`bash install.sh` still works: it installs the core and auto-detects the frontend
-from `XDG_CURRENT_DESKTOP` (override with `CYCLONE2_FRONTEND=cosmic|gnome`). The
-`Makefile` is preferred as it keeps the frontends explicitly separate.
-
 ## COSMIC (CachyOS)
 
 On the COSMIC desktop the GNOME extension does not apply; a native libcosmic
 applet provides the same indicator. The daemon, udev rule, and systemd service
-are identical — only the frontend differs. `install.sh` auto-detects COSMIC (via
-`XDG_CURRENT_DESKTOP`) and builds/installs the applet instead of the extension.
-To force it (e.g. when running outside a graphical session):
+are identical — only the frontend differs. Install the core and the COSMIC
+frontend with:
 
 ```bash
-CYCLONE2_FRONTEND=cosmic bash install.sh
+make install         # core: daemon + udev rule + systemd service
+make install-cosmic  # COSMIC applet
 ```
 
-This builds `cyclone2-applet` (needs **Rust stable ≥ 1.93** + libcosmic build
-deps), installs it to `~/.local/bin`, and drops a `.desktop` entry into
-`~/.local/share/applications`. Then add **Cyclone 2** to your panel:
+`make install-cosmic` builds `cyclone2-applet` (needs **Rust stable ≥ 1.93** +
+libcosmic build deps), installs it to `~/.local/bin`, and drops a `.desktop`
+entry into `~/.local/share/applications`. Then add **Cyclone 2** to your panel:
 *Settings → Desktop → Panel (or Dock) → Configure applets*.
 
 Settings (poll interval, display mode, low-battery alert, battery level colors) live in
