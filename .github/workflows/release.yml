@@ -100,8 +100,8 @@ jobs:
           2. Install the desktop entry:
                install -m0644 io.github.vdemonchy.Cyclone2Linux.desktop \
                  ~/.local/share/applications/
-          3. Install the udev rule + enable the systemd user service — see the
-             repository's install.sh for those DE-independent steps.
+          3. Install the udev rule + enable the systemd user service — see
+             INSTALL.md (or `make install`) for those DE-independent steps.
           4. Add "Cyclone 2" to your panel:
              Settings -> Desktop -> Panel/Dock -> Configure applets.
           EOF
