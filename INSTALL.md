@@ -1,114 +1,62 @@
 # Installing cyclone2-linux
 
-There are two ways to install: from the **pre-built release artefacts** on GitHub
-(no Go/Rust toolchain needed — recommended for most people) or **from source**
-with the `Makefile`. This guide covers the release artefacts; for building from
-source see [Building from source](#building-from-source) below and
-[CONTRIBUTING.md](CONTRIBUTING.md).
+The easiest install is one command: `make install` builds the daemon, installs
+the core (udev rule + systemd user service), **detects your desktop**, and
+installs the matching frontend — the GNOME Shell extension or the COSMIC applet.
 
 Every working setup is the same shape: the **core** (daemon + udev rule + systemd
-user service, identical on every desktop) plus **one frontend** — the GNOME Shell
-extension *or* the COSMIC applet. The two frontends are independent; install only
-the one for your desktop.
+user service, identical on every desktop) plus **one frontend**. `make install`
+wires up both for you; the two frontends stay independent under the hood
+(`install-gnome` never touches COSMIC and vice-versa).
 
 > See the [disclaimer](README.md#disclaimer): this is an unofficial project, not
 > affiliated with GameSir. Use at your own risk.
 
-## Release artefacts
+## Prerequisites
 
-Each [GitHub Release](https://github.com/vdemonchy/cyclone2-linux/releases)
-attaches three files (`<tag>` is the version, e.g. `v1.0.0`):
+- **Go 1.24+** — to build the daemon (always required).
+- **GNOME Shell 49** *or* **COSMIC** — your desktop's frontend.
+- For the COSMIC applet only: **Rust stable ≥ 1.93** plus the libcosmic build
+  dependencies (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-| Artefact | What it is | For |
-|---|---|---|
-| `cyclone2-<tag>-x86_64-linux` | the daemon binary (Go, static) | **core** — both desktops |
-| `cyclone2-linux@vdemonchy.github.io.shell-extension.zip` | the GNOME Shell extension | GNOME frontend |
-| `cyclone2-applet-<tag>-x86_64-linux.tar.gz` | the COSMIC applet + a bundled daemon copy + `INSTALL.txt` | COSMIC frontend |
+No toolchain? Skip to [Installing without a toolchain](#installing-without-a-toolchain).
 
-All artefacts are **x86_64 Linux**. On another architecture, build from source.
-
-Set a variable for the version so the commands below copy/paste cleanly:
+## Quick install
 
 ```bash
-VERSION=v1.0.0   # the release tag you're installing
+git clone https://github.com/vdemonchy/cyclone2-linux.git
+cd cyclone2-linux
+make install            # core + the frontend for your desktop (sudo for the udev rule)
 ```
 
----
+`make install` reads `$XDG_CURRENT_DESKTOP`:
 
-## Step 1 — Core (every desktop)
+- **GNOME** → installs the core and the GNOME Shell extension.
+- **COSMIC** → installs the core and builds + installs the COSMIC applet (needs
+  Rust; if it's missing, the core still installs and you'll be told how to finish).
+- **anything else / headless** → installs the core and prints the two commands so
+  you can pick a frontend manually.
 
-The core is the same regardless of frontend: the daemon binary, a udev rule (for
-root-free access to the controller's HID node in XInput mode), and a systemd
-`--user` service that runs the daemon.
-
-### 1a. Install the daemon binary
+Force the choice instead of auto-detecting:
 
 ```bash
-mkdir -p ~/.local/bin
-curl -L -o ~/.local/bin/cyclone2 \
-  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-${VERSION}-x86_64-linux"
-chmod +x ~/.local/bin/cyclone2
+make install FRONTEND=gnome     # force the GNOME extension
+make install FRONTEND=cosmic    # force the COSMIC applet
+make install FRONTEND=none      # core only, no frontend
 ```
 
-Make sure `~/.local/bin` is on your `PATH` (most distros add it automatically).
-Verify:
+Run `make help` for every target (build, test, per-component install/uninstall,
+clean). Override install paths with `PREFIX=...`, `BINDIR=...`, etc.
 
-```bash
-cyclone2 status   # prints e.g. "72% (xinput)" with a controller connected
-```
+## Finish the frontend
 
-### 1b. Install the udev rule
+The daemon and service start immediately, but each frontend needs one manual
+step to show up — the desktop can't load it for you.
 
-The rule grants the active desktop user access to the controller's vendor HID
-node (needed for XInput-mode battery reads and RGB control). Download it from the
-repo and install it (needs `sudo`):
+### GNOME
 
-```bash
-curl -L -o /tmp/60-gamesir-cyclone2.rules \
-  "https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/${VERSION}/packaging/udev/60-gamesir-cyclone2.rules"
-sudo install -m0644 /tmp/60-gamesir-cyclone2.rules /etc/udev/rules.d/60-gamesir-cyclone2.rules
-sudo udevadm control --reload-rules
-sudo udevadm trigger --subsystem-match=hidraw
-```
-
-> **Arch / CachyOS note:** the rule uses `TAG+="uaccess"` only (no `plugdev`
-> group), which is the portable approach. Don't add `GROUP="plugdev"` — that
-> group doesn't exist on Arch and breaks the whole rule.
-
-### 1c. Install and enable the systemd user service
-
-```bash
-curl -L -o /tmp/cyclone2-linux.service \
-  "https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/${VERSION}/packaging/systemd/cyclone2-linux.service"
-mkdir -p ~/.config/systemd/user
-install -m0644 /tmp/cyclone2-linux.service ~/.config/systemd/user/cyclone2-linux.service
-systemctl --user daemon-reload
-systemctl --user enable --now cyclone2-linux.service
-```
-
-The daemon now writes its state file to `$XDG_RUNTIME_DIR/cyclone2-linux.json`.
-Check it's running:
-
-```bash
-systemctl --user status cyclone2-linux.service
-```
-
-Now install **one** frontend below.
-
----
-
-## Step 2a — GNOME frontend (GNOME Shell only)
-
-Requires **GNOME Shell 49**. Download and install the extension zip:
-
-```bash
-curl -L -o /tmp/cyclone2-ext.zip \
-  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-linux@vdemonchy.github.io.shell-extension.zip"
-gnome-extensions install --force /tmp/cyclone2-ext.zip
-```
-
-Then **log out and back in** — on Wayland a full shell reload is required before
-a freshly installed extension can be enabled. After logging back in:
+**Log out and back in** — on Wayland a full shell reload is required before a
+freshly installed extension can be enabled. Then:
 
 ```bash
 gnome-extensions enable cyclone2-linux@vdemonchy.github.io
@@ -117,41 +65,10 @@ gnome-extensions enable cyclone2-linux@vdemonchy.github.io
 Configure it from the **Extensions** app → *Cyclone 2* (poll interval, display
 mode, low-battery threshold, battery colors, RGB lighting).
 
-To remove it later:
+### COSMIC
 
-```bash
-gnome-extensions disable cyclone2-linux@vdemonchy.github.io
-gnome-extensions uninstall cyclone2-linux@vdemonchy.github.io
-```
-
----
-
-## Step 2b — COSMIC frontend (COSMIC desktop only)
-
-The COSMIC tarball bundles the applet, the desktop entry, and a copy of the
-daemon (`cyclone2`) plus an `INSTALL.txt`. If you already did Step 1 you only
-need the applet and desktop entry:
-
-```bash
-curl -L -o /tmp/cyclone2-applet.tar.gz \
-  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-applet-${VERSION}-x86_64-linux.tar.gz"
-tar -xzf /tmp/cyclone2-applet.tar.gz -C /tmp
-stage="/tmp/cyclone2-applet-${VERSION}-x86_64-linux"
-
-# applet binary + desktop entry
-install -m0755 "$stage/cyclone2-applet" ~/.local/bin/cyclone2-applet
-mkdir -p ~/.local/share/applications
-install -m0644 "$stage/io.github.vdemonchy.Cyclone2Linux.desktop" \
-  ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
-```
-
-> The tarball also contains a `cyclone2` daemon binary, identical to Step 1a — if
-> you prefer, install it from there (`install -m0755 "$stage/cyclone2"
-> ~/.local/bin/`) instead of downloading the standalone daemon.
-
-Then add the applet to your panel: **Settings → Desktop → Panel (or Dock) →
-Configure applets → add "Cyclone 2"**. If it doesn't appear right away, run
+Add the applet to your panel: **Settings → Desktop → Panel (or Dock) → Configure
+applets → add "Cyclone 2"**. If it doesn't appear right away, run
 `update-desktop-database ~/.local/share/applications` and/or log out and back in
 so COSMIC rescans the desktop entries.
 
@@ -159,46 +76,126 @@ Configure it from the applet popup (poll interval, display mode, low-battery
 alert, battery colors, RGB lighting); settings persist via `cosmic-config` and
 the poll interval is mirrored to `~/.config/cyclone2-linux/config.json`.
 
-To remove it later:
-
-```bash
-rm -f ~/.local/bin/cyclone2-applet
-rm -f ~/.local/share/applications/io.github.vdemonchy.Cyclone2Linux.desktop
-update-desktop-database ~/.local/share/applications 2>/dev/null || true
-```
-
----
-
 ## Verifying the install
 
 1. Connect the controller in **XInput, DS4, or Switch** mode (the indicator is
    hidden in HID mode or when the controller is off — that's expected).
 2. The top-bar icon should appear, tinted by battery level.
-3. `cyclone2 status` prints the mode + battery from the command line.
+3. `cyclone2 status` prints the mode + battery from the command line (e.g.
+   `72% (xinput)`).
 4. The popup/menu shows the current **Mode** and **Battery**.
 
+Check the daemon is running: `systemctl --user status cyclone2-linux.service`.
 If nothing shows up, see [Troubleshooting](#troubleshooting).
+
+## Uninstalling
+
+```bash
+make uninstall          # remove the core (daemon + service + udev rule)
+make uninstall-gnome    # remove the GNOME extension
+make uninstall-cosmic   # remove the COSMIC applet
+```
+
+(`make uninstall` leaves the frontends in place; remove them with the
+frontend-specific targets.)
 
 ---
 
-## Building from source
+## Installing without a toolchain
 
-If you have the Go (and, for COSMIC, Rust) toolchains, the `Makefile` does
-everything the steps above do, with the two frontends kept separate:
+If you can't (or don't want to) build from source, every [GitHub
+Release](https://github.com/vdemonchy/cyclone2-linux/releases) attaches pre-built
+**x86_64 Linux** artefacts you can install by hand. On another architecture,
+build from source with `make install` above.
+
+Each release attaches three files (`<tag>` is the version, e.g. `v1.0.0`):
+
+| Artefact | What it is | For |
+|---|---|---|
+| `cyclone2-<tag>-x86_64-linux` | the daemon binary (Go, static) | **core** — both desktops |
+| `cyclone2-linux@vdemonchy.github.io.shell-extension.zip` | the GNOME Shell extension | GNOME frontend |
+| `cyclone2-applet-<tag>-x86_64-linux.tar.gz` | the COSMIC applet + a bundled daemon copy + `INSTALL.txt` | COSMIC frontend |
+
+Set the version once so the commands copy/paste cleanly:
 
 ```bash
-git clone https://github.com/vdemonchy/cyclone2-linux.git
-cd cyclone2-linux
-
-make install            # core: daemon + udev rule + systemd service
-make install-gnome      # GNOME frontend   (only one of these)
-make install-cosmic     # COSMIC frontend  (only one of these)
+VERSION=v1.0.0   # the release tag you're installing
 ```
 
-Run `make help` for all targets (build, test, per-component install/uninstall,
-clean). Building the COSMIC applet needs **Rust stable ≥ 1.93** plus the
-libcosmic build dependencies. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full
-list and a development workflow.
+### Core (every desktop)
+
+The core is the daemon binary, a udev rule (for root-free access to the
+controller's HID node in XInput mode), and a systemd `--user` service.
+
+```bash
+# 1a. daemon binary
+mkdir -p ~/.local/bin
+curl -L -o ~/.local/bin/cyclone2 \
+  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-${VERSION}-x86_64-linux"
+chmod +x ~/.local/bin/cyclone2
+
+# 1b. udev rule (needs sudo)
+curl -L -o /tmp/60-gamesir-cyclone2.rules \
+  "https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/${VERSION}/packaging/udev/60-gamesir-cyclone2.rules"
+sudo install -m0644 /tmp/60-gamesir-cyclone2.rules /etc/udev/rules.d/60-gamesir-cyclone2.rules
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=hidraw
+
+# 1c. systemd --user service
+curl -L -o /tmp/cyclone2-linux.service \
+  "https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/${VERSION}/packaging/systemd/cyclone2-linux.service"
+mkdir -p ~/.config/systemd/user
+install -m0644 /tmp/cyclone2-linux.service ~/.config/systemd/user/cyclone2-linux.service
+systemctl --user daemon-reload
+systemctl --user enable --now cyclone2-linux.service
+```
+
+Make sure `~/.local/bin` is on your `PATH` (most distros add it automatically).
+
+> **Arch / CachyOS note:** the udev rule uses `TAG+="uaccess"` only (no `plugdev`
+> group), which is the portable approach. Don't add `GROUP="plugdev"` — that
+> group doesn't exist on Arch and breaks the whole rule.
+
+### GNOME frontend (release zip)
+
+Requires **GNOME Shell 49**.
+
+```bash
+curl -L -o /tmp/cyclone2-ext.zip \
+  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-linux@vdemonchy.github.io.shell-extension.zip"
+gnome-extensions install --force /tmp/cyclone2-ext.zip
+```
+
+Then [finish the frontend](#gnome) — log out/in, then `gnome-extensions enable`.
+
+### COSMIC frontend (release tarball)
+
+The tarball bundles the applet, the desktop entry, a copy of the daemon, and an
+`INSTALL.txt`. If you already did the core above, you only need the applet and
+desktop entry:
+
+```bash
+curl -L -o /tmp/cyclone2-applet.tar.gz \
+  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-applet-${VERSION}-x86_64-linux.tar.gz"
+tar -xzf /tmp/cyclone2-applet.tar.gz -C /tmp
+stage="/tmp/cyclone2-applet-${VERSION}-x86_64-linux"
+
+install -m0755 "$stage/cyclone2-applet" ~/.local/bin/cyclone2-applet
+mkdir -p ~/.local/share/applications
+install -m0644 "$stage/io.github.vdemonchy.Cyclone2Linux.desktop" \
+  ~/.local/share/applications/
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+```
+
+> The tarball also contains a `cyclone2` daemon binary identical to the core
+> step's — install it from there (`install -m0755 "$stage/cyclone2"
+> ~/.local/bin/`) if you prefer over downloading the standalone daemon.
+
+Then [finish the frontend](#cosmic) — add *Cyclone 2* to your panel.
+
+To uninstall the hand-installed artefacts, remove the same files
+(`~/.local/bin/cyclone2*`, the systemd unit, the udev rule, and the GNOME/COSMIC
+frontend files).
 
 ---
 
@@ -209,10 +206,13 @@ list and a development workflow.
   `systemctl --user status cyclone2-linux.service`. Check the state file exists:
   `cat "$XDG_RUNTIME_DIR/cyclone2-linux.json"`.
 - **`cyclone2 status` works with `sudo` but not without.** The udev rule didn't
-  apply. Re-run Step 1b, then unplug/replug the dongle (or
+  apply. Re-run the udev step, then unplug/replug the dongle (or
   `sudo udevadm trigger --subsystem-match=hidraw`).
 - **GNOME extension won't enable** right after install. You must log out and back
   in first (Wayland requires a full shell reload).
+- **`make install` only installed the core on COSMIC.** Rust wasn't found — the
+  applet builds from source. Install Rust (≥ 1.93) + libcosmic deps, then run
+  `make install-cosmic`.
 - **RGB controls are greyed out.** RGB works in **XInput mode only** — a hardware
   limitation. Switch the controller to XInput to use lighting.
 - **A "controller battery low" popup appears in DS4 mode.** That's UPower reading
