@@ -50,7 +50,7 @@ jobs:
 
       # ---- daemon (Go) ----------------------------------------------------
       - name: Build daemon
-        run: go build -trimpath -ldflags="-s -w" -o "dist/cyclone2-${VERSION}-x86_64-linux" .
+        run: go build -trimpath -ldflags="-s -w" -o "dist/cyclone2-${VERSION}-x86_64-linux" ./cmd/cyclone2
 
       # ---- COSMIC applet (Rust) ------------------------------------------
       - name: Build COSMIC applet

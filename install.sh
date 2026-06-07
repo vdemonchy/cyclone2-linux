@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ---- shared: daemon + udev + systemd (DE-independent) ----
-go build -o "$HOME/.local/bin/cyclone2" .
+go build -o "$HOME/.local/bin/cyclone2" ./cmd/cyclone2
 echo "installed $HOME/.local/bin/cyclone2"
 
 sudo install -m0644 packaging/udev/60-gamesir-cyclone2.rules /etc/udev/rules.d/60-gamesir-cyclone2.rules
