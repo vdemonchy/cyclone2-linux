@@ -59,7 +59,7 @@ on battery, full (opcode 0x03):
 
 ---
 
-# DS4 mode (PlayStation) — battery via vendor HID feature report
+# DS4 mode (PlayStation) — no usable battery source
 
 Discovered 2026-06-03. In DS4 mode the Cyclone 2 **enumerates as a genuine Sony
 DualShock 4 v2**, not as a GameSir device:
@@ -74,20 +74,27 @@ charge (`0 × 10 + 5`). There is no `capacity_level` for DS4. (Cross-check: the
 same physical battery reads `Full` via `hid-nintendo` in Switch mode.) So do NOT
 use the DS4 `power_supply` `capacity` for the percentage.
 
-**Real battery = vendor HID `GET_FEATURE` report `0x12`, byte 10 (percent 0–100).**
-This is what the Windows GameSir app reads. Confirmed stable at `0x64` = 100 at
-full charge. Example feature `0x12` (full):
+**Feature `0x12` byte 10 is NOT a usable battery source either.** It reads `0x64` =
+100 at full charge, which once looked like a 0–100 percent — but a 2026-06-07
+discharge capture proved it **frozen**: byte 10, and in fact *every* byte of the
+report, stayed identical while the real charge fell 96% → 90% (cross-checked
+against XInput). It is a static snapshot, not a live gauge. Example feature `0x12`:
 ```
 12 f0050cf2418c 08 25 00 64 78705696 5c 00...
-   └ 6-byte MAC ┘       ^^ byte[10] = 0x64 = 100% (battery)
+   └ 6-byte MAC ┘       ^^ byte[10] = 0x64 — frozen, does NOT track charge
 ```
-- Read via `HIDIOCGFEATURE` on `/dev/hidrawN` of the `054c:09cc` device.
-- Requires a udev rule granting access to `054c:09cc` (the DS4 node is otherwise
-  root-only; the kernel `playstation` driver coexists with hidraw `GET_FEATURE`).
-- **Charging:** the kernel `power_supply` `status` (`Charging`/`Discharging`/`Full`)
-  is a separate cable-state signal and is reliable; use it for the charging flag.
-- **Caveat:** byte-10 scaling confirmed only at full (=100). Re-confirm at low
-  charge; if it turns out coarse/stepped, adjust the mapping.
+- Read via `HIDIOCGFEATURE` on `/dev/hidrawN` of the `054c:09cc` device (needs a
+  udev rule; the node is otherwise root-only).
+- An earlier note claimed "this is what the Windows GameSir app reads" — that was
+  an **assumption**. The GameSir app only runs in XInput mode, so it never read
+  this report in DS4 mode. No known command refreshes it.
+
+**Conclusion: DS4 mode exposes no reliable battery.** All candidate sources fail —
+`power_supply` `capacity` is a constant ~5%, the standard input byte 30 is dead
+(`0`), and feature `0x12` byte 10 is frozen at 100. The daemon therefore reports
+DS4 as **present with `battery_known=false`** (no percentage, no charging state)
+rather than a fake value. `cyclone2 probe --feature` still dumps the raw report for
+any future investigation (e.g. hunting a refresh command that wakes a live value).
 
 # Switch mode (Nintendo) — battery via kernel power_supply (coarse)
 
@@ -114,7 +121,7 @@ menu: `Full=100, High=80, Normal=55, Low=25, Critical=5, Unknown=-1`.
 It is also already in UPower
 (`/org/freedesktop/UPower/devices/battery_nintendo_switch_controller_battery_*`).
 
-## Generic power_supply read (DS4 + Switch)
+## Generic power_supply read (Switch)
 
 For any mode whose battery comes from the kernel, the source is found under the
 matched controller's hid device: `/sys/class/hidraw/hidrawN/device/power_supply/*/`.
@@ -125,7 +132,7 @@ Read `capacity` if present (numeric percent); else read `capacity_level` (coarse
 | USB id | Mode | Battery source |
 |---|---|---|
 | `3537:100b` | xinput | vendor HID report `0x12` byte 36 (this doc, top) |
-| `054c:09cc` | ds4 | vendor HID `GET_FEATURE 0x12` byte 10 (kernel `power_supply` capacity is bogus); charging from `power_supply` `status` |
+| `054c:09cc` | ds4 | **none** — feature `0x12` byte 10 is frozen, kernel `capacity` is bogus, std input byte 30 is dead; daemon reports `battery_known=false` |
 | `057e:2009` | switch | kernel `power_supply` (coarse `capacity_level`) |
 | `3537:0575` | hid | none — indicator hidden (HID mode; also the dongle's id when the controller is off) |
 

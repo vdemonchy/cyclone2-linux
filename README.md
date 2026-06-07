@@ -11,18 +11,19 @@ JSON state file that the GNOME extension or COSMIC applet displays.
 
 ## Features
 
-- **Battery level in every readable mode** — XInput, DS4, and Switch, each read
-  from the source that's actually correct for it (two are reverse-engineered;
-  see [Supported modes](#supported-modes)).
+- **Battery level where the hardware exposes it** — XInput and Switch, each read
+  from the source that's actually correct for it (XInput is reverse-engineered;
+  DS4 exposes no usable battery — see [Supported modes](#supported-modes)).
 - **Automatic mode detection** with instant connect/disconnect/mode-change
   updates over udev hotplug events.
-- **Charging detection** in all battery modes.
+- **Charging detection** in XInput and Switch modes.
 - **Top-bar indicator** — controller icon tinted by battery level (configurable
   green/yellow/red thresholds), optional level text, a pulse while charging, the
   controller name on hover, and a menu showing the current mode and battery.
 - **Low-battery desktop notifications** from the daemon, with hysteresis so a
-  battery near the threshold doesn't spam you. Accurate in every mode, including
-  the ones the system power panel gets wrong.
+  battery near the threshold doesn't spam you. Accurate wherever a battery is
+  readable (XInput, Switch) — including XInput, which the system power panel
+  gets wrong.
 - **RGB lighting control** — four addressable zones (Left/Right/Logo/Center) plus
   brightness, set from the UI or the CLI and re-applied on reconnect. XInput mode
   only (a hardware limitation — see [RGB lighting](#rgb-lighting)).
@@ -36,23 +37,25 @@ JSON state file that the GNOME extension or COSMIC applet displays.
 | Mode | USB id | Battery |
 |---|---|---|
 | **XInput** (Xbox 360) | `3537:100b` | yes — read from the controller's vendor HID interface (XInput has no battery field, so this is reverse-engineered: byte 36 of report `0x12`) |
-| **DS4** (PlayStation) | `054c:09cc` | yes — vendor HID feature report `0x12` (the kernel's `power_supply` value is wrong for this dongle) |
+| **DS4** (PlayStation) | `054c:09cc` | **no** — the dongle exposes no live battery (feature `0x12` byte 10 is frozen; the kernel's `power_supply` value is bogus). The indicator shows the controller without a level |
 | **Switch** (Nintendo) | `057e:2009` | yes — kernel `hid-nintendo` `power_supply` (coarse level: Full/High/…) |
 | **HID** | `3537:0575` | no battery source — indicator hidden (this is also what the dongle reports on its own when the controller is powered off) |
 
 The Cyclone 2's four input modes are XInput, DS4, NS (Switch), and HID. The
-indicator shows **only** when a battery-readable controller is connected
-(XInput/DS4/Switch); in HID mode, or when the controller is off (dongle idle), or
-fully disconnected, the indicator is hidden. Mode changes update it automatically
+indicator shows when a controller is connected in XInput, DS4, or Switch mode; in
+HID mode, or when the controller is off (dongle idle), or fully disconnected, the
+indicator is hidden. In **DS4 mode the battery is unavailable**, so the indicator
+shows the controller icon with no level. Mode changes update it automatically
 (instant, via udev hotplug events). In Switch mode GNOME also shows the battery
 natively (accurate).
 
 **Indicator vs. system power panel.** This project's indicator (applet/extension)
-shows the correct battery in every battery-readable mode, because the daemon reads
-each mode at its real source. The desktop's *system* power panel is different: it
-only sees devices the kernel exposes through UPower, which here means Switch mode
-(`hid-nintendo`, accurate but coarse) and DS4. So for accurate per-mode battery,
-use the indicator; the system power panel is only reliable in Switch mode.
+shows the correct battery in the modes that expose one (XInput and Switch),
+because the daemon reads each at its real source. The desktop's *system* power
+panel is different: it only sees devices the kernel exposes through UPower, which
+here means Switch mode (`hid-nintendo`, accurate but coarse) and DS4 (a bogus
+~5%). So for accurate battery use the indicator; the system power panel is only
+reliable in Switch mode.
 
 UPower has no userspace API to publish a custom battery, so getting the daemon's
 values into the system panel would need a dedicated kernel driver — out of scope.
@@ -62,8 +65,9 @@ standard DualShock battery byte, so `hid-playstation` reports a constant ~5%
 (`0 × 10 + 5`). GNOME may pop up a "controller battery low" warning as a result.
 Nothing in the config can suppress it — UPower 1.90+ dropped `UPOWER_IGNORE` and
 has no per-device ignore, leaving only a patched `upowerd` (overwritten on
-updates) or intercepting the notification. The indicator shows the real DS4 level,
-so the popup is just cosmetic.
+updates) or intercepting the notification. This popup comes from the *system*
+UPower stack, not from this project's indicator — which deliberately shows **no**
+DS4 battery level (the dongle has no usable source). It's cosmetic; ignore it.
 
 ## Requirements
 
@@ -132,9 +136,10 @@ so COSMIC rescans the desktop entries.
 
 1. `cd cosmic-applet && cargo build && ./target/debug/cyclone2-applet` — runs
    standalone for dev (a small window).
-2. With a controller connected in XInput/DS4/Switch mode, the panel shows the
+2. With a controller connected in XInput or Switch mode, the panel shows the
    controller icon tinted by battery level + the level; the popup shows the
-   correct Mode and Battery.
+   correct Mode and Battery. In DS4 mode the icon shows with no level (battery
+   unavailable).
 3. Power the controller off or switch to HID mode: the indicator hides (no
    readable battery).
 4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-linux.json` (e.g. flip `percent`) and
@@ -190,11 +195,13 @@ settings are what survive restarts and reconnects.
   level is unknown (stale reading).
 - **Hover:** shows the controller name (`GameSir Cyclone 2`).
 - **Click:** a dropdown menu with the current **Mode** and **Battery** — the
-  battery line always shows the charge state (`— Charging` / `— On battery`).
+  battery line shows the charge state (`— Charging` / `— On battery`) when a level
+  is available, or "unavailable" in DS4 mode.
 
-Charging detection works in all battery modes: **DS4** and **Switch** read the
+Charging detection works in the modes with a battery readout: **Switch** reads the
 kernel `power_supply` cable-state, and **XInput** reads byte 35 of the vendor
-`0x12` report — the charging/cable flag, confirmed by plug/unplug captures.
+`0x12` report — the charging/cable flag, confirmed by plug/unplug captures. (DS4
+shows no battery, so no charge state is shown there.)
 
 ## Low-battery notifications
 
@@ -203,8 +210,9 @@ service) when the battery first drops to or below a configurable threshold, then
 stays quiet until the level recovers (with a small hysteresis margin) or the
 controller charges/disconnects — so a battery hovering near the threshold doesn't
 spam you. Because the daemon reads the **correct** per-mode value, this works
-accurately in *all* battery modes — including XInput and DS4, which the system
-power panel (UPower) can't report correctly.
+accurately wherever a battery is readable — including XInput, which the system
+power panel (UPower) can't report correctly. (DS4 has no battery readout, so it
+never notifies.)
 
 Set the threshold in the applet popup (COSMIC) or extension preferences (GNOME)
 with a numeric stepper — **0–50% in steps of 5** (default **20%**; **0
@@ -239,11 +247,11 @@ popup):
 controller (USB: 3537:100b | 054c:09cc | 057e:2009 | 3537:0575)
    │  cyclone2 daemon  (device.Find → mode)
    │    • XInput: raw HID read (no cgo)
-   │    • DS4: vendor HID feature report; Switch: kernel power_supply sysfs
+   │    • DS4: no battery source (reports battery_known=false); Switch: kernel power_supply sysfs
    │    • + udev netlink for instant connect/disconnect
    ▼
 $XDG_RUNTIME_DIR/cyclone2-linux.json
-   {"present":true,"mode":"ds4","percent":72,"charging":false,"battery_known":true,...}
+   {"present":true,"mode":"xinput","percent":72,"charging":false,"battery_known":true,...}
    │  Gio.FileMonitor
    ▼
 GNOME Shell extension → top-bar indicator + menu
@@ -252,8 +260,9 @@ GNOME Shell extension → top-bar indicator + menu
 ## Protocol / discovery
 
 See [`docs/protocol.md`](docs/protocol.md): the reverse-engineered XInput vendor
-HID battery (report `0x0F` request → report `0x12` byte 36), the DS4/Switch
-`power_supply` sysfs layout, and the RGB lighting command protocol. The capture
+HID battery (report `0x0F` request → report `0x12` byte 36), the Switch
+`power_supply` sysfs layout (and why DS4 exposes no usable battery), and the RGB
+lighting command protocol. The capture
 and decode helpers used for the reverse-engineering live in `docs/rgb-capture.sh`
 and `docs/rgb-decode.py`.
 

@@ -40,17 +40,10 @@ func runStatus(args []string) error {
 		printStatus(*asJSON, m.Mode.Name, st.Percent, "", st.Charging, true)
 		return nil
 	case device.SourceHIDFeature:
-		dev, err := hidraw.Open(m.DevPath)
-		if err != nil {
-			return err
-		}
-		defer dev.Close()
-		st, err := reader.ReadDS4(dev)
-		if err != nil {
-			return err
-		}
-		_, _, charging, _ := powersupply.Read(m.SysPath)
-		printStatus(*asJSON, m.Mode.Name, st.Percent, "", charging, true)
+		// DS4 mode exposes no live battery (the dongle's feature 0x12 byte 10 is
+		// a frozen 0x64 and the standard battery field is dead); see
+		// docs/protocol.md. Report the controller as present, battery unavailable.
+		printStatus(*asJSON, m.Mode.Name, 0, "", false, false)
 		return nil
 	default: // SourceNone — HID mode / dongle idle / controller off: no battery
 		if *asJSON {

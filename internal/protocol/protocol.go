@@ -50,24 +50,6 @@ func ParseBattery(report []byte) (BatteryStatus, error) {
 	}, nil
 }
 
-const (
-	// DS4FeatureReportID is the vendor GET_FEATURE report carrying DS4-mode battery.
-	DS4FeatureReportID = 0x12
-	ds4BatteryOffset   = 10 // byte 10 = battery percent (0-100); confirmed 0x64 at full
-)
-
-// ParseDS4Feature decodes the DS4 vendor feature report 0x12: byte 10 = battery percent.
-func ParseDS4Feature(report []byte) (BatteryStatus, error) {
-	if len(report) <= ds4BatteryOffset || report[0] != DS4FeatureReportID {
-		return BatteryStatus{}, ErrUnexpectedReport
-	}
-	pct := int(report[ds4BatteryOffset])
-	if pct > 100 {
-		pct = 100
-	}
-	return BatteryStatus{Present: true, Percent: pct}, nil
-}
-
 // --- RGB LED control -------------------------------------------------------
 //
 // The Cyclone 2's lighting is driven over the same vendor OUTPUT report 0x0F as

@@ -47,17 +47,3 @@ func TestReadTimesOut(t *testing.T) {
 		t.Fatalf("got %v, want ErrTimeout", err)
 	}
 }
-
-func TestReadDS4(t *testing.T) {
-	buf := make([]byte, 64)
-	buf[0] = 0x12
-	buf[10] = 72
-	dev := &fakeDev{feature: buf}
-	st, err := ReadDS4(dev)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if st.Percent != 72 {
-		t.Fatalf("got %d%%, want 72%%", st.Percent)
-	}
-}

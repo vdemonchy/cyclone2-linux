@@ -205,7 +205,7 @@ func pollOnce(statePath string, last *state.State) {
 	case device.SourceHID:
 		*last = readHID(m, last)
 	case device.SourceHIDFeature:
-		*last = readDS4(m, last)
+		*last = readDS4(m)
 	case device.SourcePowerSupply:
 		pct, level, charging, psok := powersupply.Read(m.SysPath)
 		*last = state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: psok, Percent: pct, Level: level, Charging: charging}
@@ -229,22 +229,14 @@ func readHID(m device.Match, last *state.State) state.State {
 	return state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: true, Percent: st.Percent, Charging: st.Charging}
 }
 
-// readDS4 reads DS4-mode battery via the vendor feature report; charging comes
-// from the kernel power_supply status (the cable-state signal is reliable even
-// though its capacity is not).
-func readDS4(m device.Match, last *state.State) state.State {
-	dev, err := openHID(m.DevPath)
-	if err != nil {
-		log.Printf("cannot open %s: %v (is the udev rule installed?)", m.DevPath, err)
-		return state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: true, Stale: true, Percent: last.Percent, Charging: last.Charging}
-	}
-	defer dev.Close()
-	st, err := reader.ReadDS4(dev)
-	if err != nil {
-		return state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: true, Stale: true, Percent: last.Percent, Charging: last.Charging}
-	}
-	_, _, charging, _ := powersupply.Read(m.SysPath)
-	return state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: true, Percent: st.Percent, Charging: charging}
+// readDS4 reports the DS4-mode controller as present with an unknown battery.
+// The GameSir dongle exposes no live battery in DS4 mode: the vendor feature
+// 0x12 byte 10 is a frozen 0x64 (100) that never tracks real charge, and the
+// standard DS4 battery field (input-report byte 30) stays 0. Reporting
+// BatteryKnown=false makes both frontends show the controller without a (fake)
+// percentage, rather than a hardcoded-looking 100%. See docs/protocol.md.
+func readDS4(m device.Match) state.State {
+	return state.State{Present: true, Mode: m.Mode.Name, BatteryKnown: false}
 }
 
 // openHID opens a hidraw node, retrying briefly on permission errors to ride out

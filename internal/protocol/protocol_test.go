@@ -81,24 +81,3 @@ func TestBuildBatteryRequest(t *testing.T) {
 		t.Fatalf("bad request frame: len=%d [0]=0x%02x [1]=0x%02x", len(f), f[0], f[1])
 	}
 }
-
-func TestParseDS4Feature(t *testing.T) {
-	f := make([]byte, 64)
-	f[0] = 0x12
-	f[10] = 80
-	st, err := ParseDS4Feature(f)
-	if err != nil || st.Percent != 80 || !st.Present {
-		t.Fatalf("got %+v err %v, want Percent 80", st, err)
-	}
-}
-
-func TestParseDS4FeatureRejects(t *testing.T) {
-	bad := make([]byte, 64)
-	bad[0] = 0x05 // wrong report id
-	if _, err := ParseDS4Feature(bad); err != ErrUnexpectedReport {
-		t.Fatalf("want ErrUnexpectedReport for wrong id")
-	}
-	if _, err := ParseDS4Feature(make([]byte, 4)); err != ErrUnexpectedReport {
-		t.Fatalf("want ErrUnexpectedReport for short report")
-	}
-}
