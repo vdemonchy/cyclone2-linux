@@ -24,6 +24,30 @@ func isOurController(ev uevent.Event) bool {
 	return ev.Matches("3537") || ev.Matches("54c/9cc") || ev.Matches("57e/2009")
 }
 
+// settleDelays are short re-poll offsets applied after a controller (re)connect.
+// A physical mode switch makes the controller re-enumerate (USB remove+add); the
+// immediate post-add poll can read the device mid-transition (openHID rides the
+// ~1.5s udev uaccess race, and reader.Read / power_supply attrs may not be ready
+// yet, yielding a Stale read that carries the previous mode's percent). These
+// follow-up polls land once the new mode has settled, so the correct value
+// reaches the frontends within seconds rather than after the next poll interval.
+var settleDelays = []time.Duration{1 * time.Second, 3 * time.Second}
+
+// scheduleSettle arms a one-shot timer per settle delay; each fires a
+// non-blocking send into ch (extra sends coalesce when ch's buffer is full, so
+// bursts of reconnects never block or pile up). after is injectable for tests;
+// production passes a time.AfterFunc wrapper.
+func scheduleSettle(after func(time.Duration, func()), ch chan<- struct{}) {
+	for _, d := range settleDelays {
+		after(d, func() {
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		})
+	}
+}
+
 func runDaemon(args []string) error {
 	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
 	intervalFlag := fs.String("interval", "", "poll interval (Go duration, e.g. 30s); overrides config")
@@ -57,6 +81,7 @@ func runDaemon(args []string) error {
 	}
 
 	configCh := make(chan struct{}, 1)
+	settleCh := make(chan struct{}, 1)
 	if cw, err := watchConfig(configCh); err != nil {
 		log.Printf("config watch unavailable (%v); interval changes apply on next tick", err)
 	} else {
@@ -101,7 +126,12 @@ func runDaemon(args []string) error {
 				resetRGBState() // freshly connected: re-enter static mode once
 				poll()
 				applyRGBFromConfig() // re-apply lighting on reconnect
+				// A mode switch re-enumerates the device; re-poll once it settles
+				// so the new mode's battery value isn't shown wrong until next tick.
+				scheduleSettle(func(d time.Duration, fn func()) { time.AfterFunc(d, fn) }, settleCh)
 			}
+		case <-settleCh:
+			poll()
 		case <-configCh:
 			reapply()
 			applyRGBFromConfig() // lighting settings may have changed
