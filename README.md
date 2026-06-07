@@ -72,52 +72,46 @@ so the popup is just cosmetic.
 
 ## Install
 
-Two routes — **pre-built release artefacts** (no toolchain needed) or **from
-source**. Full step-by-step instructions, including verification and
-troubleshooting, are in **[INSTALL.md](INSTALL.md)**.
-
 Every setup is the **core** (daemon + udev rule + systemd `--user` service,
 identical on every desktop) plus **one frontend** — the GNOME extension *or* the
-COSMIC applet. The two frontends are independent; install only the one for your
-desktop.
+COSMIC applet. Pick the section for your desktop below.
 
-### From source (Makefile)
+There are two routes either way: **pre-built release artefacts** (no toolchain
+needed) or **from source** with the `Makefile`. Full step-by-step instructions,
+including the release-artefact commands, verification, and troubleshooting, are
+in **[INSTALL.md](INSTALL.md)**; `make help` lists every target. The GNOME and
+COSMIC installs are fully separated — `install-gnome` never touches COSMIC and
+vice-versa.
+
+### GNOME Shell
+
+Requires **GNOME Shell 49**. Install the core and the GNOME frontend:
 
 ```bash
-make install            # core: daemon + udev rule + systemd service (sudo for udev)
-make install-gnome      # GNOME Shell frontend   ┐ pick one —
-make install-cosmic     # COSMIC desktop frontend ┘ they don't touch each other
+make install         # core: daemon + udev rule + systemd service (sudo for udev)
+make install-gnome   # GNOME Shell extension
 ```
 
-`make help` lists every target (build, test, per-component install/uninstall,
-clean). The GNOME and COSMIC installs are fully separated: `install-gnome` never
-touches COSMIC and vice-versa.
-
-After installing the **GNOME** frontend, load the indicator:
+`make install-gnome` copies the extension into place and compiles its gschema.
+Then load the indicator:
 
 ```bash
 # Wayland: log out and back in (a full shell reload is required), then:
 gnome-extensions enable cyclone2-linux@vdemonchy.github.io
 ```
 
-After installing the **COSMIC** frontend, add *Cyclone 2* to your panel via
-*Settings → Desktop → Panel (or Dock) → Configure applets*.
+Configure it from the **Extensions** app → *Cyclone 2* (poll interval, display
+mode, low-battery threshold, battery colors, RGB lighting).
 
-### From release artefacts
-
-Download the daemon, the GNOME extension zip, or the COSMIC applet tarball from
-the [latest release](https://github.com/vdemonchy/cyclone2-linux/releases) — see
-**[INSTALL.md](INSTALL.md)** for the exact commands.
-
-## COSMIC (CachyOS)
+### COSMIC (CachyOS)
 
 On the COSMIC desktop the GNOME extension does not apply; a native libcosmic
-applet provides the same indicator. The daemon, udev rule, and systemd service
-are identical — only the frontend differs. Install the core and the COSMIC
-frontend with:
+applet provides the same indicator (the daemon, udev rule, and systemd service
+are identical — only the frontend differs). Install the core and the COSMIC
+frontend:
 
 ```bash
-make install         # core: daemon + udev rule + systemd service
+make install         # core: daemon + udev rule + systemd service (sudo for udev)
 make install-cosmic  # COSMIC applet
 ```
 
@@ -134,7 +128,7 @@ If *Cyclone 2* doesn't appear in the applet configurator right away, run
 `update-desktop-database ~/.local/share/applications` and/or log out and back in
 so COSMIC rescans the desktop entries.
 
-### Manual test checklist (on COSMIC hardware)
+#### Manual test checklist (on COSMIC hardware)
 
 1. `cd cosmic-applet && cargo build && ./target/debug/cyclone2-applet` — runs
    standalone for dev (a small window).
