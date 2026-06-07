@@ -6,6 +6,10 @@ name: Release
 #   - cyclone2-linux@vdemonchy.github.io.shell-extension.zip  (GNOME extension)
 #   - cyclone2-applet-<tag>-x86_64-linux.tar.gz                 (COSMIC applet + daemon)
 #   - cyclone2-<tag>-x86_64-linux                               (daemon, shared by both)
+#
+# GitHub can't filter tag pushes by branch, so the `gate` job checks that the
+# tagged commit is contained in `main`; the `release` job runs only if so. A
+# tag pushed from any other branch skips the release (no build, no publish).
 on:
   push:
     tags:
@@ -15,7 +19,31 @@ permissions:
   contents: write # required to create/update the GitHub Release
 
 jobs:
+  # Only release tags that live on main. Skips (rather than fails) otherwise,
+  # so tagging a feature branch doesn't produce a red run.
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      on_main: ${{ steps.check.outputs.on_main }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # need full history + branches to test containment
+      - id: check
+        name: Verify tag is on main
+        run: |
+          git fetch --no-tags origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${GITHUB_REF_NAME} is on main; proceeding."
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Tag ${GITHUB_REF_NAME} is not on main; skipping release."
+          fi
+
   release:
+    needs: gate
+    if: needs.gate.outputs.on_main == 'true'
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ github.ref_name }}
@@ -50,7 +78,7 @@ jobs:
 
       # ---- daemon (Go) ----------------------------------------------------
       - name: Build daemon
-        run: go build -trimpath -ldflags="-s -w" -o "dist/cyclone2-${VERSION}-x86_64-linux" .
+        run: go build -trimpath -ldflags="-s -w" -o "dist/cyclone2-${VERSION}-x86_64-linux" ./cmd/cyclone2
 
       # ---- COSMIC applet (Rust) ------------------------------------------
       - name: Build COSMIC applet
