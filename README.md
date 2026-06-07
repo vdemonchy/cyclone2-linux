@@ -72,18 +72,48 @@ so the popup is just cosmetic.
 
 ## Install
 
+Two routes — **pre-built release artefacts** (no toolchain needed) or **from
+source**. Full step-by-step instructions, including verification and
+troubleshooting, are in **[INSTALL.md](INSTALL.md)**.
+
+Every setup is the **core** (daemon + udev rule + systemd `--user` service,
+identical on every desktop) plus **one frontend** — the GNOME extension *or* the
+COSMIC applet. The two frontends are independent; install only the one for your
+desktop.
+
+### From source (Makefile)
+
 ```bash
-bash install.sh
+make install            # core: daemon + udev rule + systemd service (sudo for udev)
+make install-gnome      # GNOME Shell frontend   ┐ pick one —
+make install-cosmic     # COSMIC desktop frontend ┘ they don't touch each other
 ```
 
-This builds `~/.local/bin/cyclone2`, installs a udev rule (needs `sudo`, for
-root-free access to the XInput-mode HID node), and enables the `cyclone2-linux`
-systemd `--user` service. Then load the indicator:
+`make help` lists every target (build, test, per-component install/uninstall,
+clean). The GNOME and COSMIC installs are fully separated: `install-gnome` never
+touches COSMIC and vice-versa.
+
+After installing the **GNOME** frontend, load the indicator:
 
 ```bash
 # Wayland: log out and back in (a full shell reload is required), then:
 gnome-extensions enable cyclone2-linux@vdemonchy.github.io
 ```
+
+After installing the **COSMIC** frontend, add *Cyclone 2* to your panel via
+*Settings → Desktop → Panel (or Dock) → Configure applets*.
+
+### From release artefacts
+
+Download the daemon, the GNOME extension zip, or the COSMIC applet tarball from
+the [latest release](https://github.com/vdemonchy/cyclone2-linux/releases) — see
+**[INSTALL.md](INSTALL.md)** for the exact commands.
+
+### Legacy one-shot script
+
+`bash install.sh` still works: it installs the core and auto-detects the frontend
+from `XDG_CURRENT_DESKTOP` (override with `CYCLONE2_FRONTEND=cosmic|gnome`). The
+`Makefile` is preferred as it keeps the frontends explicitly separate.
 
 ## COSMIC (CachyOS)
 
@@ -238,3 +268,31 @@ HID battery (report `0x0F` request → report `0x12` byte 36), the DS4/Switch
 `power_supply` sysfs layout, and the RGB lighting command protocol. The capture
 and decode helpers used for the reverse-engineering live in `docs/rgb-capture.sh`
 and `docs/rgb-decode.py`.
+
+## Contributing
+
+Bug reports, hardware captures, code, and docs are all welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, development setup
+(Go daemon, Rust COSMIC applet, GNOME extension), and the PR workflow.
+
+## License
+
+[GPL-3.0](LICENSE).
+
+## Disclaimer
+
+This is an **unofficial**, community-developed project. It is **not affiliated
+with, endorsed by, or supported by GameSir** (Guangzhou Chicken Run Network
+Technology Co., Ltd.) in any way. "GameSir" and "Cyclone 2" are trademarks of
+their respective owners and are used here only to describe the hardware this
+software interoperates with.
+
+The battery and RGB lighting protocols were **reverse-engineered** for
+interoperability on Linux; they are not documented or sanctioned by GameSir and
+may stop working after any firmware update.
+
+This software is provided **"as is", without warranty of any kind**, express or
+implied (see the [LICENSE](LICENSE) for the full terms). Neither GameSir nor the
+developer(s) of this project are responsible for any damage — to your controller,
+your computer, your data, or anything else — that may result from using it.
+**Use it at your own risk.**
