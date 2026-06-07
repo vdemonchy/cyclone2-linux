@@ -61,10 +61,13 @@ changes.
 
 ## Installing your build
 
-The `Makefile` keeps the two frontends strictly separate (see `make help`):
+`make install` installs the core (daemon + udev rule + systemd service) and the
+frontend for your detected desktop. For development you usually want the explicit
+per-component targets — they keep the two frontends strictly separate and skip
+the auto-detection (see `make help`):
 
 ```bash
-make install            # core: daemon + udev rule + systemd service
+make install            # core + auto-detected frontend (FRONTEND=gnome|cosmic|none to force)
 make install-gnome      # GNOME frontend only
 make install-cosmic     # COSMIC frontend only
 ```

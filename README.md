@@ -76,31 +76,35 @@ DS4 battery level (the dongle has no usable source). It's cosmetic; ignore it.
 
 ## Install
 
-Every setup is the **core** (daemon + udev rule + systemd `--user` service,
-identical on every desktop) plus **one frontend** — the GNOME extension *or* the
-COSMIC applet. Pick the section for your desktop below.
+One command does it all — from a clone, `make install` builds the daemon,
+installs the **core** (udev rule + systemd `--user` service), **detects your
+desktop**, and installs the matching **frontend** (GNOME extension *or* COSMIC
+applet):
 
-There are two routes either way: **pre-built release artefacts** (no toolchain
-needed) or **from source** with the `Makefile`. Full step-by-step instructions,
-including the release-artefact commands, verification, and troubleshooting, are
-in **[INSTALL.md](INSTALL.md)**; `make help` lists every target. The GNOME and
-COSMIC installs are fully separated — `install-gnome` never touches COSMIC and
-vice-versa.
+```bash
+git clone https://github.com/vdemonchy/cyclone2-linux.git
+cd cyclone2-linux
+make install         # core + auto-detected frontend (sudo for the udev rule)
+```
+
+It reads `$XDG_CURRENT_DESKTOP`: GNOME gets the Shell extension, COSMIC gets the
+native applet built from source. Force the choice with
+`make install FRONTEND=gnome|cosmic|none`. The two frontends stay fully separated
+under the hood — `install-gnome` never touches COSMIC and vice-versa.
+
+Needs **Go 1.24+** always, plus **Rust stable ≥ 1.93** + libcosmic deps for the
+COSMIC applet. No toolchain? Pre-built **release artefacts** install by hand —
+see **[INSTALL.md](INSTALL.md)**, which also covers verification, uninstall, and
+troubleshooting. `make help` lists every target.
+
+Each frontend then needs one manual step the desktop can't do for you:
 
 ### GNOME Shell
 
-Requires **GNOME Shell 49**. Install the core and the GNOME frontend:
+Requires **GNOME Shell 49**. After `make install`, **log out and back in**
+(Wayland needs a full shell reload), then enable the indicator:
 
 ```bash
-make install         # core: daemon + udev rule + systemd service (sudo for udev)
-make install-gnome   # GNOME Shell extension
-```
-
-`make install-gnome` copies the extension into place and compiles its gschema.
-Then load the indicator:
-
-```bash
-# Wayland: log out and back in (a full shell reload is required), then:
 gnome-extensions enable cyclone2-linux@vdemonchy.github.io
 ```
 
@@ -109,20 +113,14 @@ mode, low-battery threshold, battery colors, RGB lighting).
 
 ### COSMIC (CachyOS)
 
-On the COSMIC desktop the GNOME extension does not apply; a native libcosmic
-applet provides the same indicator (the daemon, udev rule, and systemd service
-are identical — only the frontend differs). Install the core and the COSMIC
-frontend:
+On COSMIC the GNOME extension does not apply; a native libcosmic applet provides
+the same indicator (the daemon, udev rule, and systemd service are identical —
+only the frontend differs). `make install` builds `cyclone2-applet` and drops a
+`.desktop` entry into `~/.local/share/applications`; then add **Cyclone 2** to
+your panel: *Settings → Desktop → Panel (or Dock) → Configure applets*.
 
-```bash
-make install         # core: daemon + udev rule + systemd service (sudo for udev)
-make install-cosmic  # COSMIC applet
-```
-
-`make install-cosmic` builds `cyclone2-applet` (needs **Rust stable ≥ 1.93** +
-libcosmic build deps), installs it to `~/.local/bin`, and drops a `.desktop`
-entry into `~/.local/share/applications`. Then add **Cyclone 2** to your panel:
-*Settings → Desktop → Panel (or Dock) → Configure applets*.
+> If Rust isn't installed when you run `make install` on COSMIC, the core still
+> installs and you'll be told to install Rust and run `make install-cosmic`.
 
 Settings (poll interval, display mode, low-battery alert, battery level colors) live in
 the applet's popup and persist via `cosmic-config`; the poll interval is also written to

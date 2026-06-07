@@ -7,11 +7,16 @@
 #
 # A working install is always "core" plus exactly one frontend. The frontends
 # are kept strictly separate: `make install-gnome` never touches COSMIC and
-# `make install-cosmic` never touches GNOME. Pick the one for your desktop.
+# `make install-cosmic` never touches GNOME.
 #
-# Quick start:
-#   make install install-gnome     # GNOME Shell
-#   make install install-cosmic    # COSMIC desktop
+# Quick start — one command does everything:
+#   make install                   # core + auto-detected frontend (GNOME or COSMIC)
+#
+# `make install` reads $XDG_CURRENT_DESKTOP and installs the matching frontend.
+# Override or force the choice with FRONTEND=:
+#   make install FRONTEND=gnome    # force the GNOME extension
+#   make install FRONTEND=cosmic   # force the COSMIC applet
+#   make install FRONTEND=none     # core only, no frontend (headless / SSH)
 #
 # Everything installs into your user prefix ($HOME/.local) except the udev rule,
 # which needs root and so prompts for sudo. Override paths with PREFIX=... etc.
@@ -23,6 +28,10 @@ DESKTOPDIR     ?= $(PREFIX)/share/applications
 SYSTEMD_USER   ?= $(HOME)/.config/systemd/user
 GNOME_EXT_DIR  ?= $(HOME)/.local/share/gnome-shell/extensions
 UDEV_RULES_DIR ?= /etc/udev/rules.d
+
+# Frontend selection for `make install`. Empty = auto-detect from
+# $XDG_CURRENT_DESKTOP. Set to gnome | cosmic | none to force the choice.
+FRONTEND ?=
 
 GO    ?= go
 CARGO ?= cargo
@@ -45,8 +54,8 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "Typical install (GNOME):  make install install-gnome"
-	@echo "Typical install (COSMIC): make install install-cosmic"
+	@echo "Typical install:  make install   (core + auto-detected frontend)"
+	@echo "Force a frontend: make install FRONTEND=gnome|cosmic|none"
 
 # ---- build -----------------------------------------------------------------
 .PHONY: build
@@ -61,10 +70,48 @@ build-cosmic: ## Build the COSMIC applet (release) — needs Rust >= 1.93 + libc
 test: ## Run the Go test suite
 	$(GO) test ./...
 
-# ---- core install (DE-independent): daemon + udev + systemd ----------------
+# ---- full install: core + auto-detected frontend --------------------------
 .PHONY: install
-install: install-daemon install-udev install-service ## Install core: daemon + udev rule + systemd user service
-	@echo "core installed. Now install a frontend: 'make install-gnome' or 'make install-cosmic'."
+install: install-daemon install-udev install-service install-frontend ## Install core + auto-detected frontend (FRONTEND=gnome|cosmic|none to force)
+
+# install-frontend picks the desktop frontend. It honors FRONTEND= if set,
+# otherwise detects from $XDG_CURRENT_DESKTOP. The choice happens at recipe
+# (shell) time because it depends on the live session, not the Makefile.
+.PHONY: install-frontend
+install-frontend: ## Install the frontend for FRONTEND= or the detected desktop
+	@frontend="$(FRONTEND)"; \
+	if [ -z "$$frontend" ]; then \
+		de=$$(printf '%s' "$${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]'); \
+		case ":$$de:" in \
+			*cosmic*) frontend=cosmic ;; \
+			*gnome*)  frontend=gnome ;; \
+			*)        frontend=unknown ;; \
+		esac; \
+	fi; \
+	case "$$frontend" in \
+		gnome) \
+			$(MAKE) install-gnome ;; \
+		cosmic) \
+			if command -v $(CARGO) >/dev/null 2>&1; then \
+				$(MAKE) install-cosmic; \
+			else \
+				echo ""; \
+				echo "Detected COSMIC, but '$(CARGO)' (Rust) was not found — the applet is built from source."; \
+				echo "Core is installed. Install Rust (>= 1.93) + the libcosmic deps, then run:"; \
+				echo "  make install-cosmic"; \
+			fi ;; \
+		none) \
+			echo ""; \
+			echo "FRONTEND=none — core installed, no frontend. Install one later with:"; \
+			echo "  make install-gnome   # or"; \
+			echo "  make install-cosmic" ;; \
+		*) \
+			echo ""; \
+			echo "Core installed, but no supported desktop was detected (XDG_CURRENT_DESKTOP='$${XDG_CURRENT_DESKTOP:-}')."; \
+			echo "Install a frontend explicitly:"; \
+			echo "  make install-gnome    # GNOME Shell"; \
+			echo "  make install-cosmic   # COSMIC desktop" ;; \
+	esac
 
 .PHONY: install-daemon
 install-daemon: ## Build and install the cyclone2 daemon to $(BINDIR)
