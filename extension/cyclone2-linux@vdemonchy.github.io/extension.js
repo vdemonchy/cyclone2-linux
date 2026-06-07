@@ -13,7 +13,7 @@ const STATE_PATH = GLib.build_filenamev([GLib.get_user_runtime_dir(), 'cyclone2-
 
 const Indicator = GObject.registerClass(
 class Indicator extends PanelMenu.Button {
-    _init(settings) {
+    _init(settings, openPrefs) {
         super._init(0.0, 'Cyclone 2');
         this._settings = settings;
 
@@ -31,10 +31,15 @@ class Indicator extends PanelMenu.Button {
         Main.layoutManager.addChrome(this._tooltip);
         this._hoverId = this.connect('notify::hover', () => this._onHover());
 
-        this._modeItem = new PopupMenu.PopupMenuItem('Cyclone 2 mode: —', {reactive: false});
-        this._batteryItem = new PopupMenu.PopupMenuItem('Battery: —', {reactive: false});
+        this._modeItem = new PopupMenu.PopupImageMenuItem('Cyclone 2 mode: —', 'input-gaming-symbolic', {reactive: false});
+        this._batteryItem = new PopupMenu.PopupImageMenuItem('Battery: —', 'battery-symbolic', {reactive: false});
         this.menu.addMenuItem(this._modeItem);
         this.menu.addMenuItem(this._batteryItem);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const settingsItem = new PopupMenu.PopupImageMenuItem('Settings', 'preferences-system-symbolic');
+        settingsItem.connect('activate', () => openPrefs());
+        this.menu.addMenuItem(settingsItem);
 
         this._modeId = this._settings.connect('changed::display-mode', () => this._applyMode());
         this._applyMode();
@@ -184,7 +189,7 @@ class Indicator extends PanelMenu.Button {
 export default class Cyclone2Extension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        this._indicator = new Indicator(this._settings);
+        this._indicator = new Indicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea(this.uuid, this._indicator);
         this._intervalId = this._settings.connect('changed::poll-interval', () => this._writeConfig());
         this._thresholdId = this._settings.connect('changed::low-battery-threshold', () => this._writeConfig());
