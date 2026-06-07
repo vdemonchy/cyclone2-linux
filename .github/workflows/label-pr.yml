@@ -1,0 +1,79 @@
+name: Label PR from title
+
+# Translates a PR's Conventional Commit title prefix into a label, so that the
+# categories in .github/release.yml (which group strictly by label) populate
+# correctly in auto-generated release notes.
+#
+#   feat:            -> enhancement
+#   fix:             -> bug
+#   perf:            -> performance
+#   docs:            -> documentation
+#   refactor/chore/  -> maintenance
+#   ci/build/style/test
+#   <any>!: or       -> breaking-change (in addition to the type label)
+#   BREAKING CHANGE
+#
+# Runs on `pull_request_target` so it also has permission to label PRs opened
+# from forks (the plain `pull_request` token is read-only for forks). We never
+# check out or run the PR's code here, so the elevated token is not exposed to
+# untrusted input — only the title string is read.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  pull-requests: write # required to add labels
+  contents: read
+
+# One labeling run per PR; a newer edit supersedes an in-flight run.
+concurrency:
+  group: label-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply labels from title prefix
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const title = pr.title || "";
+
+            // Conventional Commit header: type(scope)!: description
+            const match = title.match(/^(\w+)(?:\([^)]*\))?(!)?:/);
+            const typeToLabel = {
+              feat: "enhancement",
+              fix: "bug",
+              perf: "performance",
+              docs: "documentation",
+              refactor: "maintenance",
+              chore: "maintenance",
+              ci: "maintenance",
+              build: "maintenance",
+              style: "maintenance",
+              test: "maintenance",
+            };
+
+            const labels = new Set();
+            if (match) {
+              const mapped = typeToLabel[match[1].toLowerCase()];
+              if (mapped) labels.add(mapped);
+              if (match[2] === "!") labels.add("breaking-change");
+            }
+            // `BREAKING CHANGE:` footer is also a Conventional Commit breaking marker.
+            if (/breaking change/i.test(pr.body || "")) labels.add("breaking-change");
+
+            if (labels.size === 0) {
+              core.info(`No type prefix recognized in title: "${title}"`);
+              return;
+            }
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              labels: [...labels],
+            });
+            core.info(`Applied labels: ${[...labels].join(", ")}`);
