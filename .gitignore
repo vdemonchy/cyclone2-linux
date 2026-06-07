@@ -5,3 +5,5 @@ gschemas.compiled
 /cyclone2-linux
 # Raw usbmon capture from docs/rgb-capture.sh (large; regenerate as needed).
 docs/rgb-capture.txt
+# Brainstorming specs / plans are kept local, not committed.
+docs/superpowers/
