@@ -130,6 +130,7 @@ KCM.SimpleKCM {
 
     ColorDialog {
         id: colorDialog
+        parent: page
         property int zoneIndex: 0
         onAccepted: page.setZone(zoneIndex, page.colorToHex(selectedColor))
     }
