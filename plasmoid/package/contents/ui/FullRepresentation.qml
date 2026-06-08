@@ -2,10 +2,9 @@ import QtQuick
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 import org.kde.plasma.components as PlasmaComponents
-import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasmoid
 
-PlasmaExtras.Representation {
+ColumnLayout {
     id: full
 
     // Injected from main.qml.
@@ -13,6 +12,7 @@ PlasmaExtras.Representation {
 
     Layout.minimumWidth: Kirigami.Units.gridUnit * 14
     Layout.minimumHeight: Kirigami.Units.gridUnit * 7
+    spacing: Kirigami.Units.smallSpacing
 
     function modeName(m) {
         switch (m) {
@@ -33,32 +33,28 @@ PlasmaExtras.Representation {
         return b;
     }
 
-    contentItem: ColumnLayout {
-        spacing: Kirigami.Units.smallSpacing
+    Kirigami.Heading {
+        level: 3
+        text: "GameSir Cyclone 2"
+    }
 
-        Kirigami.Heading {
-            level: 3
-            text: "GameSir Cyclone 2"
+    GridLayout {
+        columns: 2
+        columnSpacing: Kirigami.Units.largeSpacing
+        PlasmaComponents.Label { text: "Mode:"; font.bold: true }
+        PlasmaComponents.Label {
+            text: (full.ctrl && full.ctrl.present) ? full.modeName(full.ctrl.mode) : "disconnected"
         }
+        PlasmaComponents.Label { text: "Battery:"; font.bold: true }
+        PlasmaComponents.Label { text: full.batteryText() }
+    }
 
-        GridLayout {
-            columns: 2
-            columnSpacing: Kirigami.Units.largeSpacing
-            PlasmaComponents.Label { text: "Mode:"; font.bold: true }
-            PlasmaComponents.Label {
-                text: (full.ctrl && full.ctrl.present) ? full.modeName(full.ctrl.mode) : "disconnected"
-            }
-            PlasmaComponents.Label { text: "Battery:"; font.bold: true }
-            PlasmaComponents.Label { text: full.batteryText() }
-        }
+    Item { Layout.fillHeight: true }
 
-        Item { Layout.fillHeight: true }
-
-        PlasmaComponents.Button {
-            Layout.alignment: Qt.AlignRight
-            icon.name: "configure"
-            text: "Configure…"
-            onClicked: Plasmoid.internalAction("configure").trigger()
-        }
+    PlasmaComponents.Button {
+        Layout.alignment: Qt.AlignRight
+        icon.name: "configure"
+        text: "Configure…"
+        onClicked: Plasmoid.internalAction("configure").trigger()
     }
 }
