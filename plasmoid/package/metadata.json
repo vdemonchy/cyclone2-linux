@@ -1,0 +1,16 @@
+{
+    "KPlugin": {
+        "Id": "io.github.vdemonchy.cyclone2",
+        "Name": "Cyclone 2",
+        "Description": "GameSir Cyclone 2 controller battery, mode, and RGB indicator",
+        "Icon": "input-gaming-symbolic",
+        "Authors": [
+            { "Name": "Victor Demonchy" }
+        ],
+        "License": "GPL-3.0",
+        "Version": "1.0",
+        "Category": "System Information"
+    },
+    "KPackageStructure": "Plasma/Applet",
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
