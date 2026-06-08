@@ -1,8 +1,8 @@
 # cyclone2-linux
 
 Battery, connection mode, and RGB lighting control for the **GameSir Cyclone 2**
-on Linux — as a top-bar indicator on GNOME (Shell extension) and COSMIC (native
-applet).
+on Linux — as a top-bar indicator on GNOME (Shell extension), COSMIC (native
+applet), and KDE Plasma (plasmoid).
 
 The Cyclone 2 can present as several different USB controllers, each exposing the
 battery differently. A dependency-free Go daemon detects the current mode, reads
@@ -27,8 +27,8 @@ JSON state file that the GNOME extension or COSMIC applet displays.
 - **RGB lighting control** — four addressable zones (Left/Right/Logo/Center) plus
   brightness, set from the UI or the CLI and re-applied on reconnect. XInput mode
   only (a hardware limitation — see [RGB lighting](#rgb-lighting)).
-- **Two desktop frontends** — a GNOME Shell extension and a native COSMIC applet,
-  sharing the same daemon.
+- **Three desktop frontends** — a GNOME Shell extension, a native COSMIC applet,
+  and a KDE Plasma 6 plasmoid, sharing the same daemon.
 - **CLI** for a one-shot battery read, the daemon, and lighting control.
 - **Configurable poll interval** with live config reload (no restart).
 
@@ -72,14 +72,15 @@ DS4 battery level (the dongle has no usable source). It's cosmetic; ignore it.
 ## Requirements
 
 - Go 1.24+ to build. For the indicator: GNOME Shell 49 (extension) **or** COSMIC
-  with Rust stable ≥ 1.93 (applet — see [COSMIC (CachyOS)](#cosmic-cachyos)).
+  with Rust stable ≥ 1.93 (applet — see [COSMIC (CachyOS)](#cosmic-cachyos)) **or**
+  KDE Plasma 6 (plasmoid).
 
 ## Install
 
 One command does it all — from a clone, `make install` builds the daemon,
 installs the **core** (udev rule + systemd `--user` service), **detects your
-desktop**, and installs the matching **frontend** (GNOME extension *or* COSMIC
-applet):
+desktop**, and installs the matching **frontend** (GNOME extension, COSMIC
+applet, *or* KDE Plasma plasmoid):
 
 ```bash
 git clone https://github.com/vdemonchy/cyclone2-linux.git
@@ -88,9 +89,10 @@ make install         # core + auto-detected frontend (sudo for the udev rule)
 ```
 
 It reads `$XDG_CURRENT_DESKTOP`: GNOME gets the Shell extension, COSMIC gets the
-native applet built from source. Force the choice with
-`make install FRONTEND=gnome|cosmic|none`. The two frontends stay fully separated
-under the hood — `install-gnome` never touches COSMIC and vice-versa.
+native applet built from source, KDE Plasma gets the plasmoid. Force the choice
+with `make install FRONTEND=gnome|cosmic|kde|none`. The frontends stay fully
+separated under the hood — `install-gnome` never touches the others, and
+vice-versa.
 
 Needs **Go 1.24+** always, plus **Rust stable ≥ 1.93** + libcosmic deps for the
 COSMIC applet. No toolchain? Pre-built **release artefacts** install by hand —
@@ -144,6 +146,20 @@ so COSMIC rescans the desktop entries.
    confirm the panel updates within a second.
 5. Change the poll interval in the popup; confirm
    `~/.config/cyclone2-linux/config.json` updates and the daemon honors it.
+
+### KDE Plasma
+
+Requires **Plasma 6** (Qt6/KF6). `make install` detects KDE
+(`XDG_CURRENT_DESKTOP=KDE`) and installs the plasmoid; then add it to a panel:
+**right-click the panel → Add Widgets → Cyclone 2**.
+
+Settings (display mode, poll interval, low-battery alert, battery colors, RGB
+lighting) live in the widget's **Configure Cyclone 2…** dialog and persist via
+KConfig; the daemon-relevant subset is written to
+`~/.config/cyclone2-linux/config.json`, which the daemon reads live.
+
+If *Cyclone 2* doesn't appear in Add Widgets right away, log out and back in so
+Plasma rescans installed widgets.
 
 ## Usage
 
@@ -268,7 +284,8 @@ and `docs/rgb-decode.py`.
 
 Bug reports, hardware captures, code, and docs are all welcome. See
 [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout, development setup
-(Go daemon, Rust COSMIC applet, GNOME extension), and the PR workflow.
+(Go daemon, Rust COSMIC applet, GNOME extension, KDE plasmoid), and the PR
+workflow.
 
 ## License
 

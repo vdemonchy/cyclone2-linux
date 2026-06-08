@@ -2,7 +2,8 @@
 
 The easiest install is one command: `make install` builds the daemon, installs
 the core (udev rule + systemd user service), **detects your desktop**, and
-installs the matching frontend — the GNOME Shell extension or the COSMIC applet.
+installs the matching frontend — the GNOME Shell extension, the COSMIC applet, or
+the KDE Plasma plasmoid.
 
 Every working setup is the same shape: the **core** (daemon + udev rule + systemd
 user service, identical on every desktop) plus **one frontend**. `make install`
@@ -15,9 +16,11 @@ wires up both for you; the two frontends stay independent under the hood
 ## Prerequisites
 
 - **Go 1.24+** — to build the daemon (always required).
-- **GNOME Shell 49** *or* **COSMIC** — your desktop's frontend.
+- **GNOME Shell 49** *or* **COSMIC** *or* **KDE Plasma 6** — your desktop's
+  frontend.
 - For the COSMIC applet only: **Rust stable ≥ 1.93** plus the libcosmic build
   dependencies (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+- For the KDE plasmoid only: **Plasma 6** (Qt6/KF6); no extra build toolchain.
 
 No toolchain? Skip to [Installing without a toolchain](#installing-without-a-toolchain).
 
@@ -34,7 +37,8 @@ make install            # core + the frontend for your desktop (sudo for the ude
 - **GNOME** → installs the core and the GNOME Shell extension.
 - **COSMIC** → installs the core and builds + installs the COSMIC applet (needs
   Rust; if it's missing, the core still installs and you'll be told how to finish).
-- **anything else / headless** → installs the core and prints the two commands so
+- **KDE** → installs the core and the KDE Plasma 6 plasmoid.
+- **anything else / headless** → installs the core and prints the commands so
   you can pick a frontend manually.
 
 Force the choice instead of auto-detecting:
@@ -42,6 +46,7 @@ Force the choice instead of auto-detecting:
 ```bash
 make install FRONTEND=gnome     # force the GNOME extension
 make install FRONTEND=cosmic    # force the COSMIC applet
+make install FRONTEND=kde        # force the KDE Plasma plasmoid
 make install FRONTEND=none      # core only, no frontend
 ```
 
@@ -76,6 +81,17 @@ Configure it from the applet popup (poll interval, display mode, low-battery
 alert, battery colors, RGB lighting); settings persist via `cosmic-config` and
 the poll interval is mirrored to `~/.config/cyclone2-linux/config.json`.
 
+### KDE Plasma
+
+Add the plasmoid to a panel: **right-click the panel → Add Widgets → Cyclone 2**.
+If *Cyclone 2* doesn't appear right away, log out and back in so Plasma rescans
+installed widgets.
+
+Configure it from the widget's **Configure Cyclone 2…** dialog (poll interval,
+display mode, low-battery alert, battery colors, RGB lighting); settings persist
+via KConfig and the daemon-relevant subset is mirrored to
+`~/.config/cyclone2-linux/config.json`.
+
 ## Verifying the install
 
 1. Connect the controller in **XInput, DS4, or Switch** mode (the indicator is
@@ -94,6 +110,7 @@ If nothing shows up, see [Troubleshooting](#troubleshooting).
 make uninstall          # remove the core (daemon + service + udev rule)
 make uninstall-gnome    # remove the GNOME extension
 make uninstall-cosmic   # remove the COSMIC applet
+make uninstall-kde      # remove the KDE Plasma plasmoid
 ```
 
 (`make uninstall` leaves the frontends in place; remove them with the
@@ -192,6 +209,25 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 > ~/.local/bin/`) if you prefer over downloading the standalone daemon.
 
 Then [finish the frontend](#cosmic) — add *Cyclone 2* to your panel.
+
+### KDE Plasma (manual)
+
+The plasmoid is plain QML — no release artefact needed; install it straight from
+the repo:
+
+```bash
+kpackagetool6 --type Plasma/Applet --upgrade plasmoid/package
+# or, without kpackagetool6:
+mkdir -p ~/.local/share/plasma/plasmoids/io.github.vdemonchy.cyclone2
+cp -r plasmoid/package/. ~/.local/share/plasma/plasmoids/io.github.vdemonchy.cyclone2/
+```
+
+Then add **Cyclone 2** to a panel (right-click → Add Widgets). Remove with:
+
+```bash
+kpackagetool6 --type Plasma/Applet --remove io.github.vdemonchy.cyclone2
+# or: rm -rf ~/.local/share/plasma/plasmoids/io.github.vdemonchy.cyclone2
+```
 
 To uninstall the hand-installed artefacts, remove the same files
 (`~/.local/bin/cyclone2*`, the systemd unit, the udev rule, and the GNOME/COSMIC
