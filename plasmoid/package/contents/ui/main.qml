@@ -68,4 +68,5 @@ PlasmoidItem {
     toolTipSubText: (root.ctrl && root.ctrl.present) ? root.modeName(root.ctrl.mode) : ""
 
     compactRepresentation: CompactRepresentation { ctrl: root.ctrl }
+    fullRepresentation: FullRepresentation { ctrl: root.ctrl }
 }
