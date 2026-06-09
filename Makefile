@@ -4,10 +4,10 @@
 #   1. core      — the Go daemon + udev rule + systemd --user service (DE-independent)
 #   2. gnome      — the GNOME Shell extension frontend
 #   3. cosmic     — the native COSMIC applet frontend
+#   4. kde        — the KDE Plasma 6 plasmoid frontend
 #
 # A working install is always "core" plus exactly one frontend. The frontends
-# are kept strictly separate: `make install-gnome` never touches COSMIC and
-# `make install-cosmic` never touches GNOME.
+# are kept strictly separate: each install-<frontend> target touches only its own.
 #
 # Quick start — one command does everything:
 #   make install                   # core + auto-detected frontend (GNOME or COSMIC)
@@ -16,6 +16,7 @@
 # Override or force the choice with FRONTEND=:
 #   make install FRONTEND=gnome    # force the GNOME extension
 #   make install FRONTEND=cosmic   # force the COSMIC applet
+#   make install FRONTEND=kde      # force the KDE Plasma plasmoid
 #   make install FRONTEND=none     # core only, no frontend (headless / SSH)
 #
 # Everything installs into your user prefix ($HOME/.local) except the udev rule,
@@ -27,10 +28,11 @@ BINDIR         ?= $(PREFIX)/bin
 DESKTOPDIR     ?= $(PREFIX)/share/applications
 SYSTEMD_USER   ?= $(HOME)/.config/systemd/user
 GNOME_EXT_DIR  ?= $(HOME)/.local/share/gnome-shell/extensions
+PLASMOID_DIR   ?= $(HOME)/.local/share/plasma/plasmoids
 UDEV_RULES_DIR ?= /etc/udev/rules.d
 
 # Frontend selection for `make install`. Empty = auto-detect from
-# $XDG_CURRENT_DESKTOP. Set to gnome | cosmic | none to force the choice.
+# $XDG_CURRENT_DESKTOP. Set to gnome | cosmic | kde | none to force the choice.
 FRONTEND ?=
 
 GO    ?= go
@@ -38,6 +40,8 @@ CARGO ?= cargo
 
 EXT_UUID    := cyclone2-linux@vdemonchy.github.io
 EXT_SRC     := extension/$(EXT_UUID)
+PLASMOID_ID := io.github.vdemonchy.cyclone2
+PLASMOID_SRC := plasmoid/package
 UDEV_RULE   := 60-gamesir-cyclone2.rules
 SERVICE     := cyclone2-linux.service
 
@@ -55,7 +59,7 @@ help: ## Show this help
 		| sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 	@echo "Typical install:  make install   (core + auto-detected frontend)"
-	@echo "Force a frontend: make install FRONTEND=gnome|cosmic|none"
+	@echo "Force a frontend: make install FRONTEND=gnome|cosmic|kde|none"
 
 # ---- build -----------------------------------------------------------------
 .PHONY: build
@@ -72,7 +76,7 @@ test: ## Run the Go test suite
 
 # ---- full install: core + auto-detected frontend --------------------------
 .PHONY: install
-install: install-daemon install-udev install-service install-frontend ## Install core + auto-detected frontend (FRONTEND=gnome|cosmic|none to force)
+install: install-daemon install-udev install-service install-frontend ## Install core + auto-detected frontend (FRONTEND=gnome|cosmic|kde|none to force)
 
 # install-frontend picks the desktop frontend. It honors FRONTEND= if set,
 # otherwise detects from $XDG_CURRENT_DESKTOP. The choice happens at recipe
@@ -83,9 +87,10 @@ install-frontend: ## Install the frontend for FRONTEND= or the detected desktop
 	if [ -z "$$frontend" ]; then \
 		de=$$(printf '%s' "$${XDG_CURRENT_DESKTOP:-}" | tr '[:upper:]' '[:lower:]'); \
 		case ":$$de:" in \
-			*cosmic*) frontend=cosmic ;; \
-			*gnome*)  frontend=gnome ;; \
-			*)        frontend=unknown ;; \
+			*cosmic*)        frontend=cosmic ;; \
+			*gnome*)         frontend=gnome ;; \
+			*kde*|*plasma*)  frontend=kde ;; \
+			*)               frontend=unknown ;; \
 		esac; \
 	fi; \
 	case "$$frontend" in \
@@ -100,17 +105,21 @@ install-frontend: ## Install the frontend for FRONTEND= or the detected desktop
 				echo "Core is installed. Install Rust (>= 1.93) + the libcosmic deps, then run:"; \
 				echo "  make install-cosmic"; \
 			fi ;; \
+		kde) \
+			$(MAKE) install-kde ;; \
 		none) \
 			echo ""; \
 			echo "FRONTEND=none — core installed, no frontend. Install one later with:"; \
 			echo "  make install-gnome   # or"; \
-			echo "  make install-cosmic" ;; \
+			echo "  make install-cosmic  # or"; \
+			echo "  make install-kde" ;; \
 		*) \
 			echo ""; \
 			echo "Core installed, but no supported desktop was detected (XDG_CURRENT_DESKTOP='$${XDG_CURRENT_DESKTOP:-}')."; \
 			echo "Install a frontend explicitly:"; \
 			echo "  make install-gnome    # GNOME Shell"; \
-			echo "  make install-cosmic   # COSMIC desktop" ;; \
+			echo "  make install-cosmic   # COSMIC desktop"; \
+			echo "  make install-kde      # KDE Plasma" ;; \
 	esac
 
 .PHONY: install-daemon
@@ -168,6 +177,29 @@ uninstall-cosmic: ## Remove the COSMIC applet
 	-update-desktop-database "$(DESKTOPDIR)" 2>/dev/null || true
 	@echo "COSMIC applet removed."
 
+# ---- KDE Plasma frontend (only touches KDE) --------------------------------
+.PHONY: install-kde
+install-kde: ## Install the KDE Plasma 6 plasmoid (does not touch GNOME/COSMIC)
+	@if command -v kpackagetool6 >/dev/null 2>&1; then \
+		kpackagetool6 --type Plasma/Applet --upgrade "$(PLASMOID_SRC)" \
+			|| kpackagetool6 --type Plasma/Applet --install "$(PLASMOID_SRC)"; \
+	else \
+		echo "kpackagetool6 not found — copying the package manually."; \
+		mkdir -p "$(PLASMOID_DIR)/$(PLASMOID_ID)"; \
+		cp -r "$(PLASMOID_SRC)/." "$(PLASMOID_DIR)/$(PLASMOID_ID)/"; \
+	fi
+	@echo "plasmoid installed."
+	@echo "Add it: right-click your panel -> Add Widgets -> Cyclone 2"
+	@echo "(If it doesn't appear, log out and back in so Plasma rescans widgets.)"
+
+.PHONY: uninstall-kde
+uninstall-kde: ## Remove the KDE Plasma plasmoid
+	-@if command -v kpackagetool6 >/dev/null 2>&1; then \
+		kpackagetool6 --type Plasma/Applet --remove "$(PLASMOID_ID)" 2>/dev/null || true; \
+	fi
+	rm -rf "$(PLASMOID_DIR)/$(PLASMOID_ID)"
+	@echo "KDE plasmoid removed."
+
 # ---- core uninstall --------------------------------------------------------
 .PHONY: uninstall
 uninstall: ## Remove core (daemon + service + udev rule); leaves frontends
@@ -177,7 +209,7 @@ uninstall: ## Remove core (daemon + service + udev rule); leaves frontends
 	rm -f "$(BINDIR)/cyclone2"
 	sudo rm -f "$(UDEV_RULES_DIR)/$(UDEV_RULE)"
 	sudo udevadm control --reload-rules 2>/dev/null || true
-	@echo "core removed. Frontends (if installed) remain: see uninstall-gnome / uninstall-cosmic."
+	@echo "core removed. Frontends (if installed) remain: see uninstall-gnome / uninstall-cosmic / uninstall-kde."
 
 # ---- housekeeping ----------------------------------------------------------
 .PHONY: clean

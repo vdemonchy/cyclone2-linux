@@ -22,6 +22,7 @@ internal/              # the daemon's guts (Go, no cgo):
   config/ notify/       #   live config reload + low-battery notifications
 extension/             # GNOME Shell extension frontend (JS)
 cosmic-applet/         # COSMIC applet frontend (Rust / libcosmic)
+plasmoid/package/      # KDE Plasma 6 plasmoid frontend (QML)
 packaging/             # udev rule + systemd --user service
 docs/                  # protocol notes + HID capture/decode helpers
 ```
@@ -59,6 +60,24 @@ place and compiles the gschema. Iterate with `journalctl --user -f` (or Looking
 Glass) for logs; on Wayland a shell reload (log out/in) is needed to pick up
 changes.
 
+**KDE plasmoid (QML):** no build step — `make install-kde` installs it under
+`~/.local/share/plasma/plasmoids/`. Run standalone for dev with
+`plasmoidviewer -a ./plasmoid/package`.
+
+#### Manual test checklist (on KDE Plasma 6 hardware)
+
+1. `plasmoidviewer -a ./plasmoid/package` — runs standalone for dev.
+2. With a controller in XInput or Switch mode, the panel shows the controller
+   icon tinted by battery level + the level; the popup shows the correct Mode
+   and Battery. In DS4 mode the icon shows with no level.
+3. Power the controller off or switch to HID mode: the plasmoid hides.
+4. Hand-edit `$XDG_RUNTIME_DIR/cyclone2-linux.json` (e.g. flip `percent`) and
+   confirm the panel updates within ~1s.
+5. Change the poll interval in Configure; confirm
+   `~/.config/cyclone2-linux/config.json` updates and the daemon honors it.
+6. The Lighting page is disabled outside XInput mode (with an explanatory
+   message); in XInput it follows the "Control lighting" switch.
+
 ## Installing your build
 
 `make install` installs the core (daemon + udev rule + systemd service) and the
@@ -67,9 +86,10 @@ per-component targets — they keep the two frontends strictly separate and skip
 the auto-detection (see `make help`):
 
 ```bash
-make install            # core + auto-detected frontend (FRONTEND=gnome|cosmic|none to force)
+make install            # core + auto-detected frontend (FRONTEND=gnome|cosmic|kde|none to force)
 make install-gnome      # GNOME frontend only
 make install-cosmic     # COSMIC frontend only
+make install-kde        # KDE Plasma frontend only
 ```
 
 After changing the daemon: `make install-daemon && systemctl --user restart cyclone2-linux.service`.
