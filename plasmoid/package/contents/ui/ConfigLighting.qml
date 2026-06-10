@@ -3,6 +3,7 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import Qt.labs.platform as Platform
+import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
 import org.kde.kcmutils as KCM
 
@@ -21,28 +22,24 @@ KCM.SimpleKCM {
     property string controllerMode: ""
     readonly property bool isXInput: controllerMode === "xinput"
 
-    readonly property string stateFileUrl:
+    readonly property string stateFilePath:
         Platform.StandardPaths.writableLocation(Platform.StandardPaths.RuntimeLocation)
-        + "/cyclone2-linux.json"
+        .toString().replace(/^file:\/\//, "") + "/cyclone2-linux.json"
 
-    Timer {
-        interval: 1000; running: true; repeat: true; triggeredOnStart: true
-        onTriggered: page.readMode()
-    }
-
-    function readMode() {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+    // XHR on file:// URLs is blocked in Qt 6 (QML_XHR_ALLOW_FILE_READ), so poll
+    // the state file through the executable engine, like main.qml.
+    Plasma5Support.DataSource {
+        engine: "executable"
+        interval: 1000
+        connectedSources: ["cat '" + page.stateFilePath + "' 2>/dev/null"]
+        onNewData: function(source, data) {
             try {
-                var s = JSON.parse(xhr.responseText);
+                var s = JSON.parse(data.stdout);
                 page.controllerMode = (s && s.present) ? (s.mode || "") : "";
             } catch (e) {
                 page.controllerMode = "";
             }
-        };
-        try { xhr.open("GET", page.stateFileUrl); xhr.send(); }
-        catch (e) { page.controllerMode = ""; }
+        }
     }
 
     function modeLabel(m) {
