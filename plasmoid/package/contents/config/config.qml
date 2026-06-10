@@ -4,7 +4,7 @@ import org.kde.plasma.configuration
 ConfigModel {
     ConfigCategory {
         name: "General"
-        icon: "input-gaming-symbolic"
+        icon: "input-gamepad-symbolic"
         source: "ConfigGeneral.qml"
     }
     ConfigCategory {
