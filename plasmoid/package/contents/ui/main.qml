@@ -10,43 +10,31 @@ PlasmoidItem {
     // Parsed daemon state file. Default = no controller.
     property var ctrl: ({ present: false })
 
-    readonly property string stateFileUrl:
+    readonly property string stateFilePath:
         Platform.StandardPaths.writableLocation(Platform.StandardPaths.RuntimeLocation)
-        + "/cyclone2-linux.json"
+        .toString().replace(/^file:\/\//, "") + "/cyclone2-linux.json"
 
     readonly property string configDirPath:
         Platform.StandardPaths.writableLocation(Platform.StandardPaths.GenericConfigLocation)
         .toString().replace(/^file:\/\//, "") + "/cyclone2-linux"
 
-    // QML has no native file-watch; a 1s poll on a few-hundred-byte file is cheap
-    // and keeps hotplug / mode changes feeling instant.
-    Timer {
+    // QML has no native file-watch, and XHR on file:// URLs is blocked in Qt 6
+    // (QML_XHR_ALLOW_FILE_READ), so poll the state file through the executable
+    // engine; a 1s cat of a few-hundred-byte file is cheap and keeps hotplug /
+    // mode changes feeling instant. A missing file (daemon stopped) is a normal
+    // condition, hence no exit-code warning here unlike the config writer below.
+    Plasma5Support.DataSource {
+        engine: "executable"
         interval: 1000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: root.readState()
-    }
-
-    function readState() {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState !== XMLHttpRequest.DONE)
-                return;
+        connectedSources: ["cat '" + root.stateFilePath + "' 2>/dev/null"]
+        onNewData: function(source, data) {
             try {
-                if (!xhr.responseText)
+                if (!data.stdout)
                     throw "empty";
-                root.ctrl = JSON.parse(xhr.responseText);
+                root.ctrl = JSON.parse(data.stdout);
             } catch (e) {
                 root.ctrl = { present: false };
             }
-            root.applyStatus();
-        };
-        try {
-            xhr.open("GET", root.stateFileUrl);
-            xhr.send();
-        } catch (e) {
-            root.ctrl = { present: false };
             root.applyStatus();
         }
     }
