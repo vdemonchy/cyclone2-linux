@@ -17,6 +17,19 @@ KCM.SimpleKCM {
     property var cfg_rgbZones
     property var cfg_rgbZonesDefault: ["ffffff", "ffffff", "ffffff", "ffffff"]
 
+    // Owned by ConfigGeneral; declared here because Plasma pushes every config
+    // key as an initial property to every page and warns about missing ones.
+    property string cfg_displayMode
+    property string cfg_displayModeDefault
+    property int cfg_pollInterval
+    property int cfg_pollIntervalDefault
+    property int cfg_lowBatteryThreshold
+    property int cfg_lowBatteryThresholdDefault
+    property int cfg_levelHighThreshold
+    property int cfg_levelHighThresholdDefault
+    property int cfg_levelLowThreshold
+    property int cfg_levelLowThresholdDefault
+
     readonly property var zoneNames: ["Left", "Right", "Logo", "Center"]
 
     property string controllerMode: ""
@@ -125,9 +138,10 @@ KCM.SimpleKCM {
         }
     }
 
+    // Qt 6 ColorDialog is not an Item (no `parent` property); it picks up the
+    // window from its QML parent object automatically.
     ColorDialog {
         id: colorDialog
-        parent: page
         property int zoneIndex: 0
         onAccepted: page.setZone(zoneIndex, page.colorToHex(selectedColor))
     }

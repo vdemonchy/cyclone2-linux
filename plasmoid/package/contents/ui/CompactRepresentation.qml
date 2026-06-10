@@ -39,7 +39,12 @@ MouseArea {
 
         Kirigami.Icon {
             id: icon
-            source: "input-gaming-symbolic"
+            // Breeze has no input-gaming-symbolic (that's the GNOME name) and
+            // silently falls back to the full-color input-gaming, which cannot
+            // be tinted. isMask forces the tint regardless of icon theme.
+            source: "input-gamepad-symbolic"
+            fallback: "input-gaming-symbolic"
+            isMask: true
             color: compact.tintColor
             width: Kirigami.Units.iconSizes.smallMedium
             height: width

@@ -17,6 +17,15 @@ KCM.SimpleKCM {
     property int cfg_levelLowThreshold
     property int cfg_levelLowThresholdDefault: 25
 
+    // Owned by ConfigLighting; declared here because Plasma pushes every config
+    // key as an initial property to every page and warns about missing ones.
+    property bool cfg_rgbEnabled
+    property bool cfg_rgbEnabledDefault
+    property int cfg_rgbBrightness
+    property int cfg_rgbBrightnessDefault
+    property var cfg_rgbZones
+    property var cfg_rgbZonesDefault
+
     Kirigami.FormLayout {
 
         QQC2.ComboBox {

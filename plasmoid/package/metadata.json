@@ -3,7 +3,7 @@
         "Id": "io.github.vdemonchy.cyclone2",
         "Name": "Cyclone 2",
         "Description": "GameSir Cyclone 2 controller battery, mode, and RGB indicator",
-        "Icon": "input-gaming-symbolic",
+        "Icon": "input-gamepad",
         "Authors": [
             { "Name": "Victor Demonchy" }
         ],
