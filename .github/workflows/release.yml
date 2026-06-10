@@ -5,7 +5,8 @@ name: Release
 # the GitHub Release for that tag:
 #   - cyclone2-linux@vdemonchy.github.io.shell-extension.zip  (GNOME extension)
 #   - cyclone2-applet-<tag>-x86_64-linux.tar.gz                 (COSMIC applet + daemon)
-#   - cyclone2-<tag>-x86_64-linux                               (daemon, shared by both)
+#   - cyclone2-plasmoid-<tag>.plasmoid                          (KDE Plasma 6 plasmoid)
+#   - cyclone2-<tag>-x86_64-linux                               (daemon, shared by all)
 #
 # GitHub can't filter tag pushes by branch, so the `gate` job checks that the
 # tagged commit is contained in `main`; the `release` job runs only if so. A
@@ -108,6 +109,15 @@ jobs:
           tar -C dist -czf "dist/${stage}.tar.gz" "${stage}"
           rm -rf "dist/${stage}"
 
+      # ---- KDE Plasma plasmoid -------------------------------------------
+      # The plasmoid is plain QML, so "building" it is zipping the package
+      # contents with metadata.json at the archive root — the layout
+      # `kpackagetool6 --type Plasma/Applet --install <file>` expects.
+      - name: Package KDE plasmoid
+        run: |
+          ( cd plasmoid/package \
+              && zip -r -X "${GITHUB_WORKSPACE}/dist/cyclone2-plasmoid-${VERSION}.plasmoid" . )
+
       # ---- GNOME extension ----------------------------------------------
       # Compile the gschema and zip the extension contents at the archive root,
       # producing a package installable with `gnome-extensions install <zip>`.
@@ -127,6 +137,7 @@ jobs:
           files=(
             "dist/${EXT_UUID}.shell-extension.zip"
             "dist/cyclone2-applet-${VERSION}-x86_64-linux.tar.gz"
+            "dist/cyclone2-plasmoid-${VERSION}.plasmoid"
             "dist/cyclone2-${VERSION}-x86_64-linux"
           )
           if gh release view "${VERSION}" >/dev/null 2>&1; then

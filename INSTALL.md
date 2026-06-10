@@ -122,16 +122,29 @@ frontend-specific targets.)
 
 If you can't (or don't want to) build from source, every [GitHub
 Release](https://github.com/vdemonchy/cyclone2-linux/releases) attaches pre-built
-**x86_64 Linux** artefacts you can install by hand. On another architecture,
-build from source with `make install` above.
+**x86_64 Linux** artefacts. On another architecture, build from source with
+`make install` above.
 
-Each release attaches three files (`<tag>` is the version, e.g. `v1.0.0`):
+The fastest path is the install script, which downloads the latest release,
+installs the core, detects your desktop, and installs the matching frontend
+(`sudo` is prompted once, for the udev rule):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/main/scripts/install.sh | sh
+```
+
+Pin a release with `VERSION=vX.Y.Z` and/or force a frontend with
+`FRONTEND=gnome|cosmic|kde|none` (environment variables). The rest of this
+section installs the same artefacts by hand.
+
+Each release attaches four files (`<tag>` is the version, e.g. `v1.0.0`):
 
 | Artefact | What it is | For |
 |---|---|---|
-| `cyclone2-<tag>-x86_64-linux` | the daemon binary (Go, static) | **core** — both desktops |
+| `cyclone2-<tag>-x86_64-linux` | the daemon binary (Go, static) | **core** — every desktop |
 | `cyclone2-linux@vdemonchy.github.io.shell-extension.zip` | the GNOME Shell extension | GNOME frontend |
 | `cyclone2-applet-<tag>-x86_64-linux.tar.gz` | the COSMIC applet + a bundled daemon copy + `INSTALL.txt` | COSMIC frontend |
+| `cyclone2-plasmoid-<tag>.plasmoid` | the KDE Plasma 6 plasmoid (kpackage zip) | KDE frontend |
 
 Set the version once so the commands copy/paste cleanly:
 
@@ -210,10 +223,20 @@ update-desktop-database ~/.local/share/applications 2>/dev/null || true
 
 Then [finish the frontend](#cosmic) — add *Cyclone 2* to your panel.
 
-### KDE Plasma (manual)
+### KDE Plasma frontend (release .plasmoid)
 
-The plasmoid is plain QML — no release artefact needed; install it straight from
-the repo:
+The `.plasmoid` artefact is a kpackage zip that `kpackagetool6` installs
+directly:
+
+```bash
+curl -L -o /tmp/cyclone2.plasmoid \
+  "https://github.com/vdemonchy/cyclone2-linux/releases/download/${VERSION}/cyclone2-plasmoid-${VERSION}.plasmoid"
+kpackagetool6 --type Plasma/Applet --upgrade /tmp/cyclone2.plasmoid \
+  || kpackagetool6 --type Plasma/Applet --install /tmp/cyclone2.plasmoid
+```
+
+The plasmoid is plain QML, so from a clone it also installs straight from the
+repo — no artefact needed:
 
 ```bash
 kpackagetool6 --type Plasma/Applet --upgrade plasmoid/package

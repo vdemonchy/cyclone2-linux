@@ -77,6 +77,33 @@ DS4 battery level (the dongle has no usable source). It's cosmetic; ignore it.
 
 ## Install
 
+### Quick install (pre-built, no toolchain)
+
+One command downloads the latest [release](https://github.com/vdemonchy/cyclone2-linux/releases)
+artefacts and installs everything — the core (daemon + udev rule + systemd
+`--user` service, x86_64 only) plus the frontend matching your desktop
+(`$XDG_CURRENT_DESKTOP`: GNOME extension, COSMIC applet, or KDE Plasma plasmoid):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/main/scripts/install.sh | sh
+```
+
+`sudo` is prompted once, for the udev rule; everything else lands in your user
+prefix (`~/.local`, `~/.config`). Pin a version or force a frontend with
+environment variables:
+
+```bash
+VERSION=v1.2.0 FRONTEND=kde \
+  sh -c "$(curl -fsSL https://raw.githubusercontent.com/vdemonchy/cyclone2-linux/main/scripts/install.sh)"
+```
+
+(`FRONTEND=gnome|cosmic|kde|none` — `none` installs the core only.) Prefer to
+read before you pipe? The script is
+[`scripts/install.sh`](scripts/install.sh); the same artefacts also install by
+hand — see [INSTALL.md](INSTALL.md).
+
+### From source (`make install`)
+
 One command does it all — from a clone, `make install` builds the daemon,
 installs the **core** (udev rule + systemd `--user` service), **detects your
 desktop**, and installs the matching **frontend** (GNOME extension, COSMIC
@@ -95,9 +122,11 @@ separated under the hood — `install-gnome` never touches the others, and
 vice-versa.
 
 Needs **Go 1.24+** always, plus **Rust stable ≥ 1.93** + libcosmic deps for the
-COSMIC applet. No toolchain? Pre-built **release artefacts** install by hand —
-see **[INSTALL.md](INSTALL.md)**, which also covers verification, uninstall, and
-troubleshooting. `make help` lists every target.
+COSMIC applet. No toolchain? Use the
+[quick install script](#quick-install-pre-built-no-toolchain) above, or install
+the pre-built **release artefacts** by hand — see **[INSTALL.md](INSTALL.md)**,
+which also covers verification, uninstall, and troubleshooting. `make help`
+lists every target.
 
 Each frontend then needs one manual step the desktop can't do for you:
 
