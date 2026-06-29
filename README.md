@@ -71,7 +71,7 @@ DS4 battery level (the dongle has no usable source). It's cosmetic; ignore it.
 
 ## Requirements
 
-- Go 1.24+ to build. For the indicator: GNOME Shell 49 (extension) **or** COSMIC
+- Go 1.24+ to build. For the indicator: GNOME Shell 49 or 50 (extension) **or** COSMIC
   with Rust stable ≥ 1.93 (applet — see [COSMIC (CachyOS)](#cosmic-cachyos)) **or**
   KDE Plasma 6 (plasmoid).
 
@@ -132,7 +132,7 @@ Each frontend then needs one manual step the desktop can't do for you:
 
 ### GNOME Shell
 
-Requires **GNOME Shell 49**. After `make install`, **log out and back in**
+Requires **GNOME Shell 49 or 50**. After `make install`, **log out and back in**
 (Wayland needs a full shell reload), then enable the indicator:
 
 ```bash
