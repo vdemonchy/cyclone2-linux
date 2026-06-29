@@ -16,7 +16,7 @@ wires up both for you; the two frontends stay independent under the hood
 ## Prerequisites
 
 - **Go 1.24+** — to build the daemon (always required).
-- **GNOME Shell 49** *or* **COSMIC** *or* **KDE Plasma 6** — your desktop's
+- **GNOME Shell 49 or 50** *or* **COSMIC** *or* **KDE Plasma 6** — your desktop's
   frontend.
 - For the COSMIC applet only: **Rust stable ≥ 1.93** plus the libcosmic build
   dependencies (see [CONTRIBUTING.md](CONTRIBUTING.md)).
@@ -188,7 +188,7 @@ Make sure `~/.local/bin` is on your `PATH` (most distros add it automatically).
 
 ### GNOME frontend (release zip)
 
-Requires **GNOME Shell 49**.
+Requires **GNOME Shell 49 or 50**.
 
 ```bash
 curl -L -o /tmp/cyclone2-ext.zip \
