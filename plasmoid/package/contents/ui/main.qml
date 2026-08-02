@@ -72,19 +72,23 @@ PlasmoidItem {
     }
 
     // Serialize the daemon-relevant settings to ~/.config/cyclone2-linux/config.json.
-    // rgb is emitted only when the user opted in, so battery-only setups leave the
-    // controller lighting untouched (matches the GNOME extension).
+    // rgb is always emitted, enabled or not: enabled=false is what tells the daemon
+    // to turn the controller's LEDs off. The level thresholds ride along so the
+    // daemon can colour the logo zone like the panel icon (matches the GNOME
+    // extension).
     function writeConfig() {
         var cfg = {
             interval_seconds: Plasmoid.configuration.pollInterval,
-            low_battery_threshold: Plasmoid.configuration.lowBatteryThreshold
-        };
-        if (Plasmoid.configuration.rgbEnabled) {
-            cfg.rgb = {
+            low_battery_threshold: Plasmoid.configuration.lowBatteryThreshold,
+            rgb: {
+                enabled: Plasmoid.configuration.rgbEnabled,
                 brightness: Plasmoid.configuration.rgbBrightness,
-                zones: Plasmoid.configuration.rgbZones
-            };
-        }
+                zones: Plasmoid.configuration.rgbZones,
+                battery_logo: Plasmoid.configuration.rgbBatteryLogo,
+                level_high: Plasmoid.configuration.levelHighThreshold,
+                level_low: Plasmoid.configuration.levelLowThreshold
+            }
+        };
         var b64 = Qt.btoa(JSON.stringify(cfg));
         var dir = root.configDirPath;
         var path = dir + "/config.json";
@@ -102,6 +106,11 @@ PlasmoidItem {
         function onRgbEnabledChanged()          { root.writeConfig(); }
         function onRgbBrightnessChanged()       { root.writeConfig(); }
         function onRgbZonesChanged()            { root.writeConfig(); }
+        function onRgbBatteryLogoChanged()      { root.writeConfig(); }
+        // The level thresholds tint the panel icon *and* the controller's logo
+        // zone, so a change has to reach the daemon too.
+        function onLevelHighThresholdChanged()  { root.writeConfig(); }
+        function onLevelLowThresholdChanged()   { root.writeConfig(); }
     }
 
     Component.onCompleted: root.writeConfig()

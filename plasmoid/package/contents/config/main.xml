@@ -24,6 +24,9 @@
     <entry name="rgbEnabled" type="Bool">
       <default>false</default>
     </entry>
+    <entry name="rgbBatteryLogo" type="Bool">
+      <default>false</default>
+    </entry>
     <entry name="rgbBrightness" type="Int">
       <default>100</default>
     </entry>

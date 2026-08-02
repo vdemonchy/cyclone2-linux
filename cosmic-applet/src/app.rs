@@ -12,6 +12,10 @@ use cosmic::Element;
 use cosmic_config::CosmicConfigEntry;
 use std::path::PathBuf;
 
+/// Index of the logo zone in ZONE_NAMES — the zone the daemon can colour from
+/// the battery level. Matches the daemon's protocol.LEDZoneLogo.
+const LOGO_ZONE: usize = 2;
+
 /// Quick-pick palette offered under each zone's hex field.
 const SWATCHES: [&str; 9] = [
     "ff0000", "ff8800", "ffff00", "00ff00", "00ffff", "0000ff", "ff00ff", "ffffff", "000000",
@@ -62,6 +66,7 @@ pub enum Message {
     SetLevelHigh(i32),
     SetLevelLow(i32),
     ToggleRgb(bool),
+    ToggleBatteryLogo(bool),
     /// Apply a colour to a zone (from a swatch or a submitted hex field).
     SetZone(usize, String),
     /// Live edit of a zone's hex field (not yet applied).
@@ -149,7 +154,6 @@ impl Cyclone2Applet {
         if let Some(buf) = self.zone_hex.get_mut(i) {
             *buf = hex;
         }
-        self.config.rgb_enabled = true;
         self.persist();
         self.write_daemon_config();
     }
@@ -205,7 +209,14 @@ impl cosmic::Application for Cyclone2Applet {
             config::CONFIG_VERSION,
         )
         .ok()
-        .and_then(|c| AppletConfig::get_entry(&c).ok())
+        .map(|c| match AppletConfig::get_entry(&c) {
+            Ok(cfg) => cfg,
+            // Keys that fail to load — notably ones added by a newer version, so
+            // absent from an older stored config — come back filled in with their
+            // defaults. Keep that partial config: discarding it would reset every
+            // setting the user had saved.
+            Err((_errors, cfg)) => cfg,
+        })
         .unwrap_or_default();
 
         let zone_hex = Self::zone_hex_from(&config);
@@ -281,16 +292,25 @@ impl cosmic::Application for Cyclone2Applet {
                 // Green must stay strictly above the yellow threshold.
                 self.config.level_high = v.max(self.config.level_low + 5);
                 self.persist();
+                // The thresholds also colour the controller's logo zone.
+                self.write_daemon_config();
                 Task::none()
             }
             Message::SetLevelLow(v) => {
                 // Yellow must stay strictly below the green threshold.
                 self.config.level_low = v.min(self.config.level_high - 5);
                 self.persist();
+                self.write_daemon_config();
                 Task::none()
             }
             Message::ToggleRgb(on) => {
                 self.config.rgb_enabled = on;
+                self.persist();
+                self.write_daemon_config();
+                Task::none()
+            }
+            Message::ToggleBatteryLogo(on) => {
+                self.config.rgb_battery_logo = on;
                 self.persist();
                 self.write_daemon_config();
                 Task::none()
@@ -328,7 +348,6 @@ impl cosmic::Application for Cyclone2Applet {
                 Task::none()
             }
             Message::BrightnessReleased => {
-                self.config.rgb_enabled = true;
                 self.persist();
                 self.write_daemon_config();
                 Task::none()
@@ -543,11 +562,23 @@ impl cosmic::Application for Cyclone2Applet {
             content = content.push(cosmic::applet::padded_control(widget::text::caption(why)));
         } else {
             content = content.push(cosmic::applet::padded_control(widget::settings::item(
-                "Control lighting",
+                "Enable lighting",
                 widget::toggler(self.config.rgb_enabled).on_toggle(Message::ToggleRgb),
             )));
 
+            // Off means the LEDs are off, so there is nothing to configure: the
+            // controls below only exist while lighting is enabled.
             if self.config.rgb_enabled {
+                content = content
+                    .push(cosmic::applet::padded_control(widget::settings::item(
+                        "Logo shows battery level",
+                        widget::toggler(self.config.rgb_battery_logo)
+                            .on_toggle(Message::ToggleBatteryLogo),
+                    )))
+                    .push(cosmic::applet::padded_control(widget::text::caption(
+                        "Colours the logo zone green/yellow/red by the battery level thresholds above.",
+                    )));
+
                 let brightness = self.config.rgb_brightness;
                 content = content.push(cosmic::applet::padded_control(widget::settings::item(
                     format!("Brightness: {brightness}%"),
@@ -555,6 +586,16 @@ impl cosmic::Application for Cyclone2Applet {
                         .on_release(Message::BrightnessReleased),
                 )));
                 for i in 0..ZONE_COUNT {
+                    // The logo zone follows the battery level instead: no colour
+                    // controls for it while that option is on.
+                    if self.config.rgb_battery_logo && i == LOGO_ZONE {
+                        content =
+                            content.push(cosmic::applet::padded_control(widget::settings::item(
+                                ZONE_NAMES[i],
+                                widget::text::caption("Follows battery level"),
+                            )));
+                        continue;
+                    }
                     // Hex field with a live colour-swatch preview as its leading icon.
                     // Borrow the buffer from self so it outlives the returned element.
                     let field = widget::text_input("ffffff", &self.zone_hex[i])

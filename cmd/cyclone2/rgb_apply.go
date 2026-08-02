@@ -9,29 +9,55 @@ import (
 	"github.com/vdemonchy/cyclone2-linux/internal/config"
 	"github.com/vdemonchy/cyclone2-linux/internal/device"
 	"github.com/vdemonchy/cyclone2-linux/internal/protocol"
+	"github.com/vdemonchy/cyclone2-linux/internal/state"
 )
 
 // rgbWriteGap spaces consecutive LED writes; the firmware drops zone writes sent
 // back-to-back (confirmed on hardware). Kept in sync with rgb.go's writeGap.
 const rgbWriteGap = 60 * time.Millisecond
 
-// rgbStaticEntered tracks whether we've already switched the controller into
-// static mode since it (re)connected. The "enter static" command briefly forces
-// every zone to one colour, so re-sending it on each change makes all zones
-// flash; we send it only once and then just update the zone colours. Reset on
-// hotplug via resetRGBState. Safe without locking: only touched from the daemon's
-// single-goroutine event loop.
-var rgbStaticEntered bool
+// Battery-level colours for the logo zone, matching the tints the frontends put
+// on their tray icon: green (high) / yellow (medium) / red (low).
+var (
+	levelColorHigh = [3]byte{0x2e, 0xc2, 0x7e}
+	levelColorMid  = [3]byte{0xf5, 0xc2, 0x11}
+	levelColorLow  = [3]byte{0xe0, 0x1b, 0x24}
+)
 
-// resetRGBState forces the next apply to re-enter static mode (e.g. after the
-// controller reconnects, when it has reverted to its default animation).
-func resetRGBState() { rgbStaticEntered = false }
+// Fallback thresholds when the config carries none, matching the frontends'
+// defaults for the icon tint.
+const (
+	defaultLevelHigh = 60
+	defaultLevelLow  = 25
+)
 
-// applyRGBFromConfig pushes the configured lighting to the controller. It is a
-// no-op when no RGB is configured or the controller is not in XInput mode (the
-// only mode whose vendor interface accepts the LED protocol). Called from the
+// rgbApplied is what the daemon has pushed to the controller since it last
+// connected. Frames are computed as the delta against it, so a poll that doesn't
+// change the lighting costs no HID writes at all.
+type rgbApplied struct {
+	static     bool      // static mode already entered
+	zones      [][3]byte // nil until the first zone write
+	brightness int       // -1 until the first brightness write
+}
+
+// rgbState tracks the applied lighting. Safe without locking: only touched from
+// the daemon's single-goroutine event loop.
+var rgbState = freshRGBState()
+
+func freshRGBState() rgbApplied { return rgbApplied{brightness: -1} }
+
+// resetRGBState forgets what was applied, so the next apply re-enters static
+// mode and rewrites every zone (e.g. after the controller reconnects, when it
+// has reverted to its default animation).
+func resetRGBState() { rgbState = freshRGBState() }
+
+// applyRGBFromConfig pushes the configured lighting to the controller, given the
+// battery snapshot the logo zone may follow. It is a no-op when no RGB is
+// configured at all (CLI-only setups keep their lighting), when the controller
+// is not in XInput mode (the only mode whose vendor interface accepts the LED
+// protocol), or when nothing has changed since the last apply. Called from the
 // daemon's single-goroutine event loop, so it never races the battery poll.
-func applyRGBFromConfig() {
+func applyRGBFromConfig(st state.State) {
 	cfg, err := config.Read()
 	if err != nil || cfg.RGB == nil {
 		return
@@ -40,7 +66,7 @@ func applyRGBFromConfig() {
 	if !ok || m.Mode.Name != "xinput" {
 		return
 	}
-	frames := rgbFrames(*cfg.RGB, !rgbStaticEntered)
+	frames, next := rgbFrames(*cfg.RGB, st, rgbState)
 	if len(frames) == 0 {
 		return
 	}
@@ -55,33 +81,97 @@ func applyRGBFromConfig() {
 			time.Sleep(rgbWriteGap)
 		}
 		if err := dev.Write(f); err != nil {
+			// Leave rgbState untouched so the next apply retries the whole
+			// sequence rather than assuming a half-written frame stuck.
 			log.Printf("rgb: write failed: %v", err)
 			return
 		}
 	}
-	rgbStaticEntered = true
+	rgbState = next
 }
 
-// rgbFrames turns an RGB config into the ordered reports to send: optionally the
-// "enter static mode" command, then the per-zone colours, then brightness.
-// enterStatic should be true only when the controller may still be in an
-// animated mode (first apply / after reconnect) to avoid the all-zone flash.
-func rgbFrames(r config.RGB, enterStatic bool) [][]byte {
+// rgbFrames turns an RGB config plus the current battery state into the ordered
+// reports to send, given what was already applied: optionally the "enter static
+// mode" command, then the zone colours that actually changed, then brightness.
+// It returns the frames and the state to record once they are all written.
+func rgbFrames(r config.RGB, st state.State, prev rgbApplied) ([][]byte, rgbApplied) {
+	next := prev
 	var frames [][]byte
-	if colors, ok := parseZones(r.Zones); ok {
-		if enterStatic {
+
+	if colors, ok := desiredZones(r, st); ok {
+		// Entering static mode briefly forces every zone to one colour, so send
+		// it only when the controller may still be animating (first apply /
+		// after reconnect) and rewrite all zones behind it.
+		if !prev.static {
 			c0 := colors[0]
 			frames = append(frames, protocol.BuildEnterStatic(c0[0], c0[1], c0[2]))
+			next.static = true
+			next.zones = nil
 		}
 		for i, reg := range protocol.LEDZoneRegs {
+			if next.zones != nil && next.zones[i] == colors[i] {
+				continue // already showing this colour
+			}
 			c := colors[i]
 			frames = append(frames, protocol.BuildZoneColor(reg, c[0], c[1], c[2]))
 		}
+		next.zones = colors
 	}
-	if r.Brightness != nil {
+	// Brightness is meaningless while the zones are black, so skip it when the
+	// lighting is off — re-enabling then restores the configured value.
+	if r.On() && r.Brightness != nil && *r.Brightness != prev.brightness {
 		frames = append(frames, protocol.BuildBrightness(*r.Brightness))
+		next.brightness = *r.Brightness
 	}
-	return frames
+	if len(frames) == 0 {
+		return nil, prev
+	}
+	return frames, next
+}
+
+// desiredZones resolves the colours the controller should show: all black when
+// lighting is disabled, otherwise the configured zones with the logo zone
+// replaced by the battery-level colour when that option is on. ok is false when
+// the config carries no usable zone list, which leaves the zones untouched.
+func desiredZones(r config.RGB, st state.State) ([][3]byte, bool) {
+	if !r.On() {
+		return make([][3]byte, protocol.NumZones), true // lighting off
+	}
+	colors, ok := parseZones(r.Zones)
+	if !ok {
+		return nil, false
+	}
+	if r.BatteryLogo {
+		if c, ok := batteryLevelColor(r, st); ok {
+			colors[protocol.LEDZoneLogo] = c
+		}
+	}
+	return colors, true
+}
+
+// batteryLevelColor maps the battery percentage onto the configured thresholds.
+// ok is false when there is no level to map (no controller, no battery source,
+// or a stale reading), so the logo keeps its configured colour instead of
+// claiming a level the daemon can't vouch for.
+func batteryLevelColor(r config.RGB, st state.State) ([3]byte, bool) {
+	if !st.Present || !st.BatteryKnown || st.Stale {
+		return [3]byte{}, false
+	}
+	high, low := r.LevelHigh, r.LevelLow
+	if high <= 0 {
+		high = defaultLevelHigh
+	}
+	if low <= 0 {
+		low = defaultLevelLow
+	}
+	switch {
+	case st.Percent >= high:
+		return levelColorHigh, true
+	case st.Percent >= low:
+		return levelColorMid, true
+	default:
+		return levelColorLow, true
+	}
 }
 
 // parseZones converts the config's hex zone strings into RGB triples. It returns

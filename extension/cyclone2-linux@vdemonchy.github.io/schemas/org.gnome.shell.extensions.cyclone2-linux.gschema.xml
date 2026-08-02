@@ -31,7 +31,11 @@
     </key>
     <key name="rgb-enabled" type="b">
       <default>false</default>
-      <summary>Manage the controller RGB lighting from this extension</summary>
+      <summary>Light the controller LEDs (off turns them off)</summary>
+    </key>
+    <key name="rgb-battery-logo" type="b">
+      <default>false</default>
+      <summary>Colour the logo zone by battery level, using the level thresholds</summary>
     </key>
     <key name="rgb-brightness" type="i">
       <default>100</default>

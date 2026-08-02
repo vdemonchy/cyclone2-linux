@@ -212,11 +212,21 @@ as well. The applet/extension therefore **disable the lighting controls entirely
 unless the controller is in XInput mode** (showing why instead); the daemon
 applies the saved settings whenever an XInput controller is connected.
 
-**From the UI** (recommended): in the COSMIC applet popup or the GNOME extension
-preferences, enable **Control lighting**, then set per-zone colours and
-brightness. Settings are written to `config.json`; the **daemon** applies them
-and re-applies on reconnect, so they persist. Left off, the controller's lighting
-is untouched.
+**From the UI** (recommended): in the COSMIC applet popup, the GNOME extension
+preferences or the KDE plasmoid settings, turn on **Enable lighting**, then set
+per-zone colours and brightness. Settings are written to `config.json`; the
+**daemon** applies them and re-applies on reconnect, so they persist. Turning the
+switch **off turns the controller's LEDs off** and hides the colour controls —
+there is nothing to configure while the lighting is off. (A `config.json` with no
+`rgb` block at all — what you get if no frontend has ever written one — still
+leaves the lighting untouched, so CLI-only setups are unaffected.)
+
+**Logo shows battery level:** with lighting enabled, this option hands the
+**Logo** zone to the daemon, which colours it green / yellow / red from the
+battery level using the same thresholds as the top-bar icon (see *Battery level
+colors*). The other three zones keep their configured colours, and the logo falls
+back to its configured colour whenever the level is unknown (no controller, no
+battery source, or a stale reading).
 
 **From the CLI:**
 ```
@@ -278,11 +288,14 @@ popup):
 - **Battery level colors** — battery % thresholds for the icon: green at or
   above the high threshold, yellow at or above the low threshold, red below it
   (defaults: green ≥60%, yellow ≥25%). The green threshold can't be set at or
-  below the yellow one.
-- **Controller lighting** — opt-in **Control lighting** toggle, a brightness
+  below the yellow one. They also drive the controller's logo zone when *Logo
+  shows battery level* is on.
+- **Controller lighting** — an **Enable lighting** toggle (off turns the
+  controller LEDs off), a **Logo shows battery level** toggle, a brightness
   slider, and a colour picker per zone (Left / Right / Logo / Center). Written to
   `config.json` as an `rgb` block; the daemon applies it (XInput mode only) and
-  re-applies on reconnect. Off by default, so battery-only setups are untouched.
+  re-applies on reconnect. Off by default, and the colour controls only appear
+  while it is on.
 
 ## How it works
 

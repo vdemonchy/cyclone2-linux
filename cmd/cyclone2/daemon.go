@@ -90,14 +90,16 @@ func runDaemon(args []string) error {
 
 	var last state.State
 	notifier := &lowBatteryNotifier{send: notify.Send}
-	// poll reads the battery, writes the state file, and fires a low-battery
-	// notification if the level just crossed the configured threshold.
+	// poll reads the battery, writes the state file, fires a low-battery
+	// notification if the level just crossed the configured threshold, and
+	// re-applies the lighting — which is a no-op unless something changed, so
+	// the logo zone can follow the battery level without extra HID traffic.
 	poll := func() {
 		pollOnce(*statePath, &last)
 		notifier.consider(last, currentThreshold())
+		applyRGBFromConfig(last)
 	}
 	poll()
-	applyRGBFromConfig() // push configured lighting on startup
 
 	ticker := time.NewTicker(curInterval)
 	defer ticker.Stop()
@@ -124,8 +126,7 @@ func runDaemon(args []string) error {
 				log.Printf("controller disconnected")
 			} else {
 				resetRGBState() // freshly connected: re-enter static mode once
-				poll()
-				applyRGBFromConfig() // re-apply lighting on reconnect
+				poll()          // re-applies the lighting alongside the battery read
 				// A mode switch re-enumerates the device; re-poll once it settles
 				// so the new mode's battery value isn't shown wrong until next tick.
 				scheduleSettle(func(d time.Duration, fn func()) { time.AfterFunc(d, fn) }, settleCh)
@@ -134,7 +135,7 @@ func runDaemon(args []string) error {
 			poll()
 		case <-configCh:
 			reapply()
-			applyRGBFromConfig() // lighting settings may have changed
+			applyRGBFromConfig(last) // lighting settings may have changed
 		}
 	}
 }

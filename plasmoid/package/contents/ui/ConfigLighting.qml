@@ -12,6 +12,8 @@ KCM.SimpleKCM {
 
     property bool cfg_rgbEnabled
     property bool cfg_rgbEnabledDefault: false
+    property bool cfg_rgbBatteryLogo
+    property bool cfg_rgbBatteryLogoDefault: false
     property int cfg_rgbBrightness
     property int cfg_rgbBrightnessDefault: 100
     property var cfg_rgbZones
@@ -101,14 +103,26 @@ KCM.SimpleKCM {
 
             QQC2.Switch {
                 id: enableSwitch
-                Kirigami.FormData.label: "Control lighting:"
+                Kirigami.FormData.label: "Enable lighting:"
+                text: "Off turns the controller LEDs off"
                 checked: page.cfg_rgbEnabled
                 onToggled: page.cfg_rgbEnabled = checked
             }
 
+            // Everything below only exists while the lighting is on: off means the
+            // LEDs are off, so there is nothing to configure.
+            QQC2.Switch {
+                id: batteryLogoSwitch
+                Kirigami.FormData.label: "Logo shows battery:"
+                text: "Colour the logo zone by the battery level thresholds"
+                visible: enableSwitch.checked
+                checked: page.cfg_rgbBatteryLogo
+                onToggled: page.cfg_rgbBatteryLogo = checked
+            }
+
             QQC2.SpinBox {
                 Kirigami.FormData.label: "Brightness (%):"
-                enabled: enableSwitch.checked
+                visible: enableSwitch.checked
                 from: 0; to: 100; stepSize: 5
                 value: page.cfg_rgbBrightness
                 onValueModified: page.cfg_rgbBrightness = value
@@ -120,7 +134,9 @@ KCM.SimpleKCM {
                     required property int index
                     required property string modelData
                     Kirigami.FormData.label: modelData + ":"
-                    enabled: enableSwitch.checked
+                    visible: enableSwitch.checked
+                    // The logo colour is driven by the battery level instead.
+                    enabled: !(batteryLogoSwitch.checked && modelData === "Logo")
                     implicitWidth: Kirigami.Units.gridUnit * 4
                     contentItem: Rectangle {
                         radius: 3
