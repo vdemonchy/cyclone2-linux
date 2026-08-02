@@ -40,10 +40,12 @@ pub struct AppletConfig {
     pub level_high: i32,
     /// Battery % at or above which the icon is yellow (medium); below is red (low).
     pub level_low: i32,
-    /// When true, the daemon manages the controller lighting from the settings
-    /// below. When false, RGB is omitted from config.json and the daemon leaves
-    /// the controller's lighting untouched.
+    /// When true, the daemon lights the controller from the settings below.
+    /// When false it turns the controller's LEDs off.
     pub rgb_enabled: bool,
+    /// When true, the logo zone's colour follows the battery level using
+    /// level_high / level_low instead of its entry in rgb_zones.
+    pub rgb_battery_logo: bool,
     /// Overall LED brightness, 0-100.
     pub rgb_brightness: i32,
     /// Per-zone colours as "RRGGBB" hex, ordered like ZONE_NAMES.
@@ -59,6 +61,7 @@ impl Default for AppletConfig {
             level_high: 60,
             level_low: 25,
             rgb_enabled: false,
+            rgb_battery_logo: false,
             rgb_brightness: 100,
             rgb_zones: vec!["ffffff".to_string(); ZONE_COUNT],
         }
@@ -79,34 +82,44 @@ pub fn daemon_config_dir() -> PathBuf {
     base.join("cyclone2-linux")
 }
 
-/// The RGB block of the daemon config.json (omitted entirely when lighting is
-/// not managed). Field names/shape match the Go config.RGB struct.
+/// The RGB block of the daemon config.json. Field names/shape match the Go
+/// config.RGB struct.
 #[derive(Serialize)]
 struct DaemonRgb {
+    /// False tells the daemon to turn the controller's LEDs off.
+    enabled: bool,
     brightness: i32,
     zones: Vec<String>,
+    battery_logo: bool,
+    /// The icon-tint thresholds, so the daemon can colour the logo zone the
+    /// same way the panel icon is tinted.
+    level_high: i32,
+    level_low: i32,
 }
 
-/// The daemon config.json. `rgb` is None unless the user enabled lighting
-/// control, so battery-only setups leave the controller's LEDs untouched.
+/// The daemon config.json. `rgb` is always present, enabled or not — a config
+/// with no rgb block at all (never written here) leaves the controller's
+/// lighting untouched, which is what CLI-only setups get.
 #[derive(Serialize)]
 struct DaemonConfig {
     interval_seconds: i32,
     low_battery_threshold: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    rgb: Option<DaemonRgb>,
+    rgb: DaemonRgb,
 }
 
 /// Serialize the daemon config.json from the applet config.
 pub fn daemon_config_bytes(cfg: &AppletConfig) -> Vec<u8> {
-    let rgb = cfg.rgb_enabled.then(|| DaemonRgb {
-        brightness: cfg.rgb_brightness,
-        zones: cfg.rgb_zones.clone(),
-    });
     let dc = DaemonConfig {
         interval_seconds: cfg.poll_interval,
         low_battery_threshold: cfg.low_battery_threshold,
-        rgb,
+        rgb: DaemonRgb {
+            enabled: cfg.rgb_enabled,
+            brightness: cfg.rgb_brightness,
+            zones: cfg.rgb_zones.clone(),
+            battery_logo: cfg.rgb_battery_logo,
+            level_high: cfg.level_high,
+            level_low: cfg.level_low,
+        },
     };
     serde_json::to_vec(&dc).unwrap_or_default()
 }
@@ -131,18 +144,22 @@ mod tests {
         assert_eq!(c.level_high, 60);
         assert_eq!(c.level_low, 25);
         assert!(!c.rgb_enabled);
+        assert!(!c.rgb_battery_logo);
         assert_eq!(c.rgb_brightness, 100);
         assert_eq!(c.rgb_zones.len(), ZONE_COUNT);
     }
 
+    /// Lighting off still emits the rgb block: enabled=false is what tells the
+    /// daemon to turn the LEDs off.
     #[test]
-    fn config_bytes_omit_rgb_when_disabled() {
+    fn config_bytes_mark_rgb_disabled() {
         let mut c = AppletConfig::default();
         c.poll_interval = 30;
         c.low_battery_threshold = 20;
+        c.rgb_zones = vec!["ffffff".into(); ZONE_COUNT];
         assert_eq!(
             daemon_config_bytes(&c),
-            b"{\"interval_seconds\":30,\"low_battery_threshold\":20}"
+            br#"{"interval_seconds":30,"low_battery_threshold":20,"rgb":{"enabled":false,"brightness":100,"zones":["ffffff","ffffff","ffffff","ffffff"],"battery_logo":false,"level_high":60,"level_low":25}}"#
         );
     }
 
@@ -161,8 +178,21 @@ mod tests {
         ];
         assert_eq!(
             daemon_config_bytes(&c),
-            br#"{"interval_seconds":60,"low_battery_threshold":0,"rgb":{"brightness":80,"zones":["ff0000","00ff00","0000ff","ffffff"]}}"#
+            br#"{"interval_seconds":60,"low_battery_threshold":0,"rgb":{"enabled":true,"brightness":80,"zones":["ff0000","00ff00","0000ff","ffffff"],"battery_logo":false,"level_high":60,"level_low":25}}"#
         );
+    }
+
+    #[test]
+    fn config_bytes_carry_battery_logo_and_thresholds() {
+        let mut c = AppletConfig::default();
+        c.rgb_enabled = true;
+        c.rgb_battery_logo = true;
+        c.level_high = 70;
+        c.level_low = 30;
+        let json = String::from_utf8(daemon_config_bytes(&c)).unwrap();
+        assert!(json.contains(r#""battery_logo":true"#), "{json}");
+        assert!(json.contains(r#""level_high":70"#), "{json}");
+        assert!(json.contains(r#""level_low":30"#), "{json}");
     }
 
     #[test]
@@ -174,8 +204,11 @@ mod tests {
         c.poll_interval = 10;
         c.low_battery_threshold = 15;
         write_daemon_config(&tmp, &c).unwrap();
-        let got = std::fs::read(tmp.join("config.json")).unwrap();
-        assert_eq!(got, b"{\"interval_seconds\":10,\"low_battery_threshold\":15}");
+        let got = String::from_utf8(std::fs::read(tmp.join("config.json")).unwrap()).unwrap();
+        assert!(
+            got.starts_with(r#"{"interval_seconds":10,"low_battery_threshold":15,"rgb":"#),
+            "{got}"
+        );
         let _ = std::fs::remove_dir_all(&tmp);
     }
 }

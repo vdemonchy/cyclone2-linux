@@ -23,9 +23,25 @@ type Config struct {
 // in the order [Left, Right, Logo, Center]; an empty/short list leaves the
 // missing zones untouched. Brightness is 0-100; nil leaves it untouched.
 type RGB struct {
+	// Enabled mirrors the frontends' "Enable lighting" switch. False turns the
+	// controller's LEDs off. A missing key means "not specified" and counts as
+	// enabled, so configs written before this key existed keep their colours.
+	Enabled    *bool    `json:"enabled,omitempty"`
 	Brightness *int     `json:"brightness,omitempty"`
 	Zones      []string `json:"zones,omitempty"`
+	// BatteryLogo drives the Logo zone's colour from the battery level, using
+	// LevelHigh/LevelLow, instead of its entry in Zones.
+	BatteryLogo bool `json:"battery_logo,omitempty"`
+	// LevelHigh / LevelLow are the battery-% thresholds for that colour: at or
+	// above LevelHigh green, at or above LevelLow yellow, below it red. They are
+	// the same thresholds the frontends tint their tray icon with. Zero (unset)
+	// falls back to the daemon's defaults.
+	LevelHigh int `json:"level_high,omitempty"`
+	LevelLow  int `json:"level_low,omitempty"`
 }
+
+// On reports whether the daemon should light the controller at all.
+func (r RGB) On() bool { return r.Enabled == nil || *r.Enabled }
 
 // Path is $XDG_CONFIG_HOME/cyclone2-linux/config.json (falling back to
 // ~/.config/cyclone2-linux/config.json).

@@ -21,6 +21,8 @@ KCM.SimpleKCM {
     // key as an initial property to every page and warns about missing ones.
     property bool cfg_rgbEnabled
     property bool cfg_rgbEnabledDefault
+    property bool cfg_rgbBatteryLogo
+    property bool cfg_rgbBatteryLogoDefault
     property int cfg_rgbBrightness
     property int cfg_rgbBrightnessDefault
     property var cfg_rgbZones

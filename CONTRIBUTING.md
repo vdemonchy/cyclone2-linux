@@ -76,7 +76,9 @@ changes.
 5. Change the poll interval in Configure; confirm
    `~/.config/cyclone2-linux/config.json` updates and the daemon honors it.
 6. The Lighting page is disabled outside XInput mode (with an explanatory
-   message); in XInput it follows the "Control lighting" switch.
+   message); in XInput the controls appear only while "Enable lighting" is on,
+   and turning it off blanks the controller's LEDs. With "Logo shows battery"
+   on, the Logo picker is disabled and that zone tracks the battery level.
 
 ## Installing your build
 

@@ -121,21 +121,30 @@ export default class Cyclone2Prefs extends ExtensionPreferences {
 
         page.add(colorGroup);
 
-        // Controller lighting (RGB). XInput mode only. The switch gates whether
-        // the daemon manages the lighting at all.
+        // Controller lighting (RGB). XInput mode only. The switch turns the
+        // controller LEDs on or off and gates every control below it.
         const rgbGroup = new Adw.PreferencesGroup({
             title: 'Controller lighting',
             description: 'Per-zone RGB and brightness. Applied only in XInput mode.',
         });
 
         const enableRow = new Adw.SwitchRow({
-            title: 'Control lighting',
-            subtitle: 'Let the daemon manage the controller LEDs',
+            title: 'Enable lighting',
+            subtitle: 'Light the controller LEDs; off turns them off',
         });
         enableRow.active = settings.get_boolean('rgb-enabled');
         enableRow.connect('notify::active', () =>
             settings.set_boolean('rgb-enabled', enableRow.active));
         rgbGroup.add(enableRow);
+
+        const batteryLogoRow = new Adw.SwitchRow({
+            title: 'Logo shows battery level',
+            subtitle: 'Colour the logo zone green/yellow/red by the thresholds above',
+        });
+        batteryLogoRow.active = settings.get_boolean('rgb-battery-logo');
+        batteryLogoRow.connect('notify::active', () =>
+            settings.set_boolean('rgb-battery-logo', batteryLogoRow.active));
+        rgbGroup.add(batteryLogoRow);
 
         const brightnessRow = new Adw.SpinRow({
             title: 'Brightness',
@@ -149,8 +158,11 @@ export default class Cyclone2Prefs extends ExtensionPreferences {
             settings.set_int('rgb-brightness', brightnessRow.value));
         rgbGroup.add(brightnessRow);
 
-        // Track every RGB sub-control so they can be gated together by the switch.
-        const gatedRows = [brightnessRow];
+        // Track every RGB sub-control so they can be gated together by the
+        // switch, and the zone rows separately (the logo one is also gated by
+        // the battery-level option).
+        const gatedRows = [batteryLogoRow, brightnessRow];
+        const zoneRows = [];
 
         ZONE_NAMES.forEach((name, i) => {
             const zoneRow = new Adw.ActionRow({title: name});
@@ -169,19 +181,26 @@ export default class Cyclone2Prefs extends ExtensionPreferences {
             zoneRow.add_suffix(button);
             rgbGroup.add(zoneRow);
             gatedRows.push(zoneRow);
+            zoneRows.push(zoneRow);
         });
 
         // RGB only works in XInput mode — in DS4/Switch the controller hides the
         // vendor LED interface entirely (GameSir Connect requires XInput too). So
         // disable the *whole* lighting group, including the enable switch, unless
-        // the controller is currently in XInput mode. Within XInput, the per-zone
-        // controls additionally follow the enable switch.
-        const syncSensitive = () => {
+        // the controller is currently in XInput mode. Within XInput, the lighting
+        // controls only exist while the switch is on: off means the LEDs are off,
+        // so there is nothing to configure.
+        const syncControls = () => {
             const mode = readControllerMode();
             const xinput = mode === 'xinput';
             const on = settings.get_boolean('rgb-enabled');
+            const batteryLogo = settings.get_boolean('rgb-battery-logo');
             enableRow.sensitive = xinput;
-            for (const r of gatedRows) r.sensitive = xinput && on;
+            for (const r of gatedRows) r.visible = xinput && on;
+            // The logo colour is driven by the battery level instead; show the
+            // picker as unavailable rather than hiding it, so the option's effect
+            // on that zone stays visible.
+            zoneRows[ZONE_NAMES.indexOf('Logo')].sensitive = !batteryLogo;
             if (!xinput) {
                 const where = mode ? `${MODE_NAMES[mode] || mode} mode` : 'no controller connected';
                 rgbGroup.set_description(
@@ -189,23 +208,24 @@ export default class Cyclone2Prefs extends ExtensionPreferences {
             } else {
                 rgbGroup.set_description(on
                     ? 'Per-zone colours and brightness, applied to the controller.'
-                    : 'Enable "Control lighting" to manage the controller LEDs.');
+                    : 'The controller LEDs are off. Enable lighting to set colours.');
             }
         };
-        settings.connect('changed::rgb-enabled', syncSensitive);
+        settings.connect('changed::rgb-enabled', syncControls);
+        settings.connect('changed::rgb-battery-logo', syncControls);
 
         // Re-evaluate when the controller mode changes (e.g. user switches modes
         // while the window is open). Clean up the monitor when the window closes.
         const stateMonitor = Gio.File.new_for_path(STATE_PATH)
             .monitor(Gio.FileMonitorFlags.NONE, null);
-        const monitorId = stateMonitor.connect('changed', () => syncSensitive());
+        const monitorId = stateMonitor.connect('changed', () => syncControls());
         window.connect('close-request', () => {
             stateMonitor.disconnect(monitorId);
             stateMonitor.cancel();
             return false;
         });
 
-        syncSensitive();
+        syncControls();
 
         page.add(rgbGroup);
         window.add(page);

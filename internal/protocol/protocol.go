@@ -81,6 +81,10 @@ var LEDZoneRegs = []byte{0x05, 0x08, 0x0e, 0x11}
 // LEDZoneNames labels LEDZoneRegs positionally for the frontends.
 var LEDZoneNames = []string{"Left", "Right", "Logo", "Center"}
 
+// LEDZoneLogo is the index of the logo zone in LEDZoneRegs / LEDZoneNames (the
+// zone the daemon can drive from the battery level).
+const LEDZoneLogo = 2
+
 // NumZones is the number of independently addressable LED zones.
 const NumZones = 4
 

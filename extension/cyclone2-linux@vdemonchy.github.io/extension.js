@@ -196,6 +196,11 @@ export default class Cyclone2Extension extends Extension {
         this._rgbEnabledId = this._settings.connect('changed::rgb-enabled', () => this._writeConfig());
         this._rgbBrightnessId = this._settings.connect('changed::rgb-brightness', () => this._writeConfig());
         this._rgbZonesId = this._settings.connect('changed::rgb-zones', () => this._writeConfig());
+        this._rgbBatteryLogoId = this._settings.connect('changed::rgb-battery-logo', () => this._writeConfig());
+        // The level thresholds tint the top-bar icon *and* (via config.json) the
+        // controller's logo zone, so a change has to reach the daemon too.
+        this._rgbLevelHiId = this._settings.connect('changed::level-high-threshold', () => this._writeConfig());
+        this._rgbLevelLoId = this._settings.connect('changed::level-low-threshold', () => this._writeConfig());
         this._writeConfig();
 
         this._file = Gio.File.new_for_path(STATE_PATH);
@@ -227,14 +232,20 @@ export default class Cyclone2Extension extends Extension {
             const seconds = this._settings.get_int('poll-interval');
             const threshold = this._settings.get_int('low-battery-threshold');
             const config = {interval_seconds: seconds, low_battery_threshold: threshold};
-            // Only emit rgb when the user opted in, so battery-only setups leave
-            // the controller's lighting untouched.
-            if (this._settings.get_boolean('rgb-enabled')) {
-                config.rgb = {
-                    brightness: this._settings.get_int('rgb-brightness'),
-                    zones: this._settings.get_strv('rgb-zones'),
-                };
-            }
+            // rgb is always emitted, enabled or not: enabled=false is what tells
+            // the daemon to turn the controller's LEDs off. (A config with no rgb
+            // block at all — never written by this extension — leaves the
+            // lighting untouched, for CLI-only setups.) The level thresholds ride
+            // along so the daemon can colour the logo zone the way the top-bar
+            // icon is tinted.
+            config.rgb = {
+                enabled: this._settings.get_boolean('rgb-enabled'),
+                brightness: this._settings.get_int('rgb-brightness'),
+                zones: this._settings.get_strv('rgb-zones'),
+                battery_logo: this._settings.get_boolean('rgb-battery-logo'),
+                level_high: this._settings.get_int('level-high-threshold'),
+                level_low: this._settings.get_int('level-low-threshold'),
+            };
             const data = JSON.stringify(config);
             Gio.File.new_for_path(path).replace_contents(
                 new TextEncoder().encode(data), null, false,
@@ -269,7 +280,8 @@ export default class Cyclone2Extension extends Extension {
             this._settings.disconnect(this._thresholdId);
             this._thresholdId = 0;
         }
-        for (const id of ['_rgbEnabledId', '_rgbBrightnessId', '_rgbZonesId']) {
+        for (const id of ['_rgbEnabledId', '_rgbBrightnessId', '_rgbZonesId',
+                          '_rgbBatteryLogoId', '_rgbLevelHiId', '_rgbLevelLoId']) {
             if (this[id]) {
                 this._settings.disconnect(this[id]);
                 this[id] = 0;
